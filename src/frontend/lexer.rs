@@ -167,10 +167,10 @@ fn is_option_value(c: u8) -> bool {
     (c > 0x20 && c < 0x3B) || (c > 0x3B && c < 0x7F)
 }
 
-/// charset for signed integers
+/// charset for signed integers + prefix characters 0x 0o 0b
 #[inline]
 fn is_integer(c: u8) -> bool {
-    (c >= 0x30 && c < 0x3A) || c == b'-'
+    (c >= 0x30 && c < 0x3A) || c == b'-' || c == b'x' || c == b'o' || c == b'b'
 }
 
 /// charset for chars: everything printable, escape sequences are allowed!
@@ -750,6 +750,122 @@ mod tests {
     #[test]
     fn comment_inbetween_vars() {
         let input = "struct x{x:y;/**/x:y;}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    #[should_panic]
+    fn option_no_assignment() {
+        let input = "option key;";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    #[should_panic]
+    fn option_no_value() {
+        let input = "option key=;";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn option_valid() {
+        let input = "option key=value;";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    #[should_panic]
+    fn option_reject_key() {
+        let input = "option x!y=value;";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn valid_number_variable() {
+        let input = "struct x{x:u16=3;}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn valid_numberset() {
+        let input = "struct x{x:u16=-8,-3,0..1,101;}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn valid_nonsense_numberset() {
+        let input = "struct x{x:u16=-,-,0..0,'\\X';}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn valid_numberset_chars() {
+        let input = "struct x{x:u16='A','SS','D','FF';}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    #[should_panic]
+    fn invalid_numberset_chars() {
+        let input = "struct x{x:u16='AAAA','SSSS','DDDD','FFFF';}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn empty_string_literal() {
+        let input = "struct x{x:string=\"\";}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn valid_string_literal() {
+        let input = "struct x{x:string=\"\\\" hello world! \\xCC\\x0d\";}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn duplicate_variable_flags() {
+        let input = "struct x{optional optional optional repeats 3 repeats 4 x:x;}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn multiple_structs() {
+        let input = "struct x{}struct x{}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn test_nested_blocks() {
+        let input = "struct x{x:y{x:y{x:y;};};}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn test_number_formats() {
+        let input = "struct x{x:x=0x01..0o77,0b10101;}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn valid_grammar() {
+        let input = "
+option endianness = little;
+
+struct ELFIdent {
+    magic: string = \"\\x7FELF\";
+    class: u8 = 1,2;
+    data: u8 = 1,2;
+    version: u8 = 1;
+    osabi: u8 = 0x00..0x04,0x06..0x12;
+    abiversion: u8 = 0;
+    repeats 7 pad: u8;
+}
+
+struct Root {
+    ident: ELFIdent;
+}        
+";
         Lexer::new(input.as_bytes()).lex().unwrap();
     }
 }
