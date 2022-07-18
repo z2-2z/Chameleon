@@ -54,6 +54,8 @@ pub enum Token {
     String(Range),
     VariableValueStart,
     VariableValueEnd,
+    BlockOpen,
+    BlockClose,
 }
 
 struct Scanner {
@@ -240,6 +242,12 @@ impl Lexer {
             Token::VariableValueEnd => {
                 println!("VariableValueEnd");
             },
+            Token::BlockOpen => {
+                println!("BlockOpen");
+            },
+            Token::BlockClose => {
+                println!("BlockClose");
+            },
         }
     }
     
@@ -399,14 +407,25 @@ impl Lexer {
             len @ _ => name_start + len,
         };
         
+        tokens.push(
+            Token::ContainerOpen(Range::new(name_start, name_end))
+        );
+        
         // after the name whitespaces may follow
         self.scanner.skip(&mut is_whitespace);
         
         // after the container name a block must be opened
+        self.parse_block(tokens)?;
+        
+        tokens.push(Token::ContainerClose);
+        
+        Ok(())
+    }
+    
+    fn parse_block(&mut self, tokens: &mut Vec<Token>) -> Result<(), LexerError> {
         self.scanner.expect(keywords::BLOCK_OPEN)?;
-        tokens.push(
-            Token::ContainerOpen(Range::new(name_start, name_end))
-        );
+        
+        tokens.push(Token::BlockOpen);
         
         self.parse_variable_listing(tokens)?;
         
@@ -416,7 +435,7 @@ impl Lexer {
         // A block delimiter must close the container
         self.scanner.expect(keywords::BLOCK_CLOSE)?;
         
-        tokens.push(Token::ContainerClose);
+        tokens.push(Token::BlockClose);
         
         Ok(())
     }
@@ -541,6 +560,13 @@ impl Lexer {
             
             tokens.push(Token::VariableValueEnd);
             
+            self.scanner.skip(&mut is_whitespace);
+        }
+        // or we may have a new block
+        else if self.scanner.peek(keywords::BLOCK_OPEN) {
+            self.parse_block(tokens)?;
+            
+            // after a block whitespaces may follow
             self.scanner.skip(&mut is_whitespace);
         }
         

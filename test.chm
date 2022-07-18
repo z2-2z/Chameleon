@@ -18,8 +18,12 @@ struct my_personal_struct123 {
     optional repeats -8,-7,-6..-3,'\A','\'','\\','  ' var_name: u16 = "\'\"\x\\asdf";
     
     option back = again;
+    
+    x: y {
+        y: z;
+    };
 }
 
 struct empty {}
 
-struct packed{optional repeats 4 v:type;x:type=3;option name=value;}
+struct packed{optional repeats 4 v:type;x:type=3;option name=value;x:y{y:z;};}
