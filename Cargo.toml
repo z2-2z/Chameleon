@@ -1,0 +1,11 @@
+[package]
+name = "chameleon"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+lto = true
+codegen-unis = 1
+debug = true
+
+[dependencies]

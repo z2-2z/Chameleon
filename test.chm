@@ -1,0 +1,25 @@
+
+/* comment
+/* nested comment */
+*/
+
+option name = some_value ;option
+very=close;
+
+option
+more_complex_value123
+=
+33!?#*
+;
+
+struct my_personal_struct123 {
+    option local_opt = local_value;
+    
+    optional repeats -8,-7,-6..-3,'\A','\'','\\','  ' var_name: u16 = "\'\"\x\\asdf";
+    
+    option back = again;
+}
+
+struct empty {}
+
+struct packed{optional repeats 4 v:type;x:type=3;option name=value;}

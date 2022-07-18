@@ -1,0 +1,26 @@
+/*
+comment
+/* nested comment */
+*/
+
+struct <identifier> {
+    // primitives with any value
+    <options> <identifier> : <primitive-type>;
+    // primitive from value set
+    <options> <identifier> : <primitive-type> = <numberset>;
+    
+    // bytes with undefined content but size set
+    <options> <identifier> : bytes|string = <numberset>;
+    // bytes constant
+    <options> <identifier> : bytes|string = <bytes-literal>;
+    
+    // struct reference
+    <options> <identifier> : <identifier>;
+    
+    // oneof
+    <options> <identifier> : oneof {
+        <variables>+ // as above
+    };
+}
+
+<numberset> = (<char> | <single-number> | <number-range>),*
