@@ -58,12 +58,12 @@ pub enum Token {
     BlockClose,
 }
 
-struct Scanner {
-    content: Vec<u8>,
+struct Scanner<'a> {
+    content: &'a [u8],
     cursor: usize,
 }
-impl Scanner {
-    fn new(content: Vec<u8>) -> Self {
+impl<'a> Scanner<'a> {
+    fn new(content: &'a [u8]) -> Self {
         Self {
             content,
             cursor: 0,
@@ -179,11 +179,11 @@ fn is_char(c: u8) -> bool {
     c >= 0x20 && c < 0x7F
 }
 
-pub struct Lexer {
-    scanner: Scanner,
+pub struct Lexer<'a> {
+    scanner: Scanner<'a>,
 }
-impl Lexer {
-    pub fn new(content: Vec<u8>) -> Self {
+impl<'a> Lexer<'a> {
+    pub fn new(content: &'a [u8]) -> Self {
         Self {
             scanner: Scanner::new(content),
         }
@@ -452,6 +452,10 @@ impl Lexer {
             else if self.scanner.peek(keywords::OPTION) && !self.scanner.peek(keywords::VAROPT_OPTIONAL) {
                 self.parse_option(tokens)?;
             }
+            // Is it a comment ?
+            else if self.scanner.peek(keywords::COMMENT_OPEN) {
+                self.parse_comment()?;
+            }
             // Otherwise it must be a variable definition
             else {
                 self.parse_variable_definition(tokens)?;
@@ -691,5 +695,61 @@ impl Lexer {
         self.scanner.expect(keywords::STRING_DELIM)?;
         
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Lexer;
+    
+    #[test]
+    #[should_panic]
+    fn unclosed_comment() {
+        let input = "/*";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn empty_comment() {
+        let input = "/**/struct x{}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn valid_nested_comment() {
+        let input = "/*/**/*/struct x{}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    #[should_panic]
+    fn unclosed_nested_comment() {
+        let input = "/*/**/struct x{}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    #[should_panic]
+    fn double_closed_comment() {
+        let input = "/**/*/struct x{}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn comment_at_block_start() {
+        let input = "struct x{/**/}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn comment_at_block_end() {
+        let input = "struct x{x:y;/**/}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
+    }
+    
+    #[test]
+    fn comment_inbetween_vars() {
+        let input = "struct x{x:y;/**/x:y;}";
+        Lexer::new(input.as_bytes()).lex().unwrap();
     }
 }

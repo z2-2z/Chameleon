@@ -2,7 +2,7 @@ mod frontend;
 
 fn main() {
     let buf = std::fs::read("test.chm").expect("testcase");
-    let mut lexer = frontend::Lexer::new(buf);
+    let mut lexer = frontend::Lexer::new(&buf);
     
     let tokens = match lexer.lex() {
         Ok(tokens) => tokens,
