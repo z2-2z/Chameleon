@@ -13,3 +13,6 @@ pub static RANGE_OP: &[u8] = b"..";
 pub static NUMBERSET_DELIM: &[u8] = b",";
 pub static VAR_TYPE_SEP: &[u8] = b":";
 pub static STRING_DELIM: &[u8] = b"\"";
+
+pub const OPTION_ENDIANNESS: &[u8] = b"endianness";
+pub const OPTION_SCHEDULING: &[u8] = b"scheduling";

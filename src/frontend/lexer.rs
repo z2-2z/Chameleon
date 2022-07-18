@@ -1,26 +1,10 @@
 use crate::frontend::keywords;
+use crate::frontend::range::{SourceRange, NewRange};
 
 macro_rules! string {
     ($kw:expr) => {
         std::str::from_utf8($kw).unwrap()
     };
-}
-
-/// Represents a continuous range [start, end)
-pub struct Range {
-    /// Inclusive start index
-    start: usize,
-    
-    /// Exclusive end index
-    end: usize,
-}
-impl Range {
-    fn new(start: usize, end: usize) -> Self {
-        Self {
-            start,
-            end
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -31,10 +15,10 @@ pub enum LexerError {
 
 pub enum Token {
     /// Argument: Offset and size of identifier
-    ContainerOpen(Range),
+    ContainerOpen(SourceRange),
     ContainerClose,
     /// Arguments: range of identifier, range of value
-    OptionDef(Range, Range),
+    OptionDef(SourceRange, SourceRange),
     VariableStart,
     VariableEnd,
     VariableOptional,
@@ -43,19 +27,27 @@ pub enum Token {
     NumbersetStart,
     NumbersetEnd,
     /// Arguments: lower limit, upper limit
-    IntegerRange(Range, Range),
+    IntegerRange(SourceRange, SourceRange),
     /// Argument: integer string
-    Integer(Range),
+    Integer(SourceRange),
     /// Argument: literal contents
-    Character(Range),
+    Character(SourceRange),
     /// Argument: type name
-    VariableType(Range),
+    VariableType(SourceRange),
     /// Argument: string literal contents
-    String(Range),
+    String(SourceRange),
     VariableValueStart,
     VariableValueEnd,
     BlockOpen,
     BlockClose,
+}
+impl Token {
+    pub fn is_option_def(&self) -> bool {
+        match self {
+            Token::OptionDef(_, _) => true,
+            _ => false,
+        }
+    }
 }
 
 struct Scanner<'a> {
@@ -141,7 +133,7 @@ impl<'a> Scanner<'a> {
         (line, col)
     }
     
-    fn substring(&self, range: &Range) -> Option<&[u8]> {
+    fn substring(&self, range: &SourceRange) -> Option<&[u8]> {
         if range.start < self.content.len() && range.end <= self.content.len() {
             Some(&self.content[range.start .. range.end])
         } else {
@@ -374,8 +366,8 @@ impl<'a> Lexer<'a> {
         if option_end > option_start && value_end > value_start && identifier_end > identifier_start {
             tokens.push(
                 Token::OptionDef(
-                    Range::new(identifier_start, identifier_end),
-                    Range::new(value_start, value_end),
+                    SourceRange::new(identifier_start, identifier_end),
+                    SourceRange::new(value_start, value_end),
                 )
             );
         }
@@ -408,7 +400,7 @@ impl<'a> Lexer<'a> {
         };
         
         tokens.push(
-            Token::ContainerOpen(Range::new(name_start, name_end))
+            Token::ContainerOpen(SourceRange::new(name_start, name_end))
         );
         
         // after the name whitespaces may follow
@@ -542,7 +534,7 @@ impl<'a> Lexer<'a> {
             len @ _ => type_start + len,
         };
         
-        tokens.push(Token::VariableType(Range::new(type_start, type_end)));
+        tokens.push(Token::VariableType(SourceRange::new(type_start, type_end)));
         
         // Optionally whitespaces may follow the type
         self.scanner.skip(&mut is_whitespace);
@@ -617,7 +609,7 @@ impl<'a> Lexer<'a> {
                 
                 self.scanner.forward(1);
                 
-                tokens.push(Token::Character(Range::new(char_start, char_end)));
+                tokens.push(Token::Character(SourceRange::new(char_start, char_end)));
             }
             // Otherwise we must have a number
             else {
@@ -646,13 +638,13 @@ impl<'a> Lexer<'a> {
                     };
                     
                     tokens.push(Token::IntegerRange(
-                        Range::new(number_start, number_end),
-                        Range::new(limit_start, limit_end),
+                        SourceRange::new(number_start, number_end),
+                        SourceRange::new(limit_start, limit_end),
                     ));
                 }
                 // This is a single number
                 else {
-                    tokens.push(Token::Integer(Range::new(number_start, number_end)));
+                    tokens.push(Token::Integer(SourceRange::new(number_start, number_end)));
                 }
             }
             
@@ -690,7 +682,7 @@ impl<'a> Lexer<'a> {
             }
         });
         
-        tokens.push(Token::String(Range::new(string_start, string_end)));
+        tokens.push(Token::String(SourceRange::new(string_start, string_end)));
         
         self.scanner.expect(keywords::STRING_DELIM)?;
         
