@@ -24,13 +24,13 @@ impl<'a> TokenScanner<'a> {
         }
     }
     
-    fn subslice<F>(&self, cond: &mut F) -> Option<&'a [Token]>
+    fn subslice<F>(&self, cond: &mut F) -> &'a [Token]
     where
         F: FnMut(&'a Token) -> bool,
     {
         let mut len = 0;
         
-        while self.cursor.saturating_add(len) < self.content.len() {
+        while self.cursor.saturating_add(len) < self.tokens.len() {
             if !cond(&self.tokens[self.cursor + len]) {
                 len += 1;
                 break;
@@ -39,14 +39,25 @@ impl<'a> TokenScanner<'a> {
             len += 1;
         }
         
-        if len == 0 {
-            None
+        &self.tokens[self.cursor..self.cursor + len]
+    }
+    
+    fn current(&self) -> Option<&'a Token> {
+        if self.cursor < self.tokens.len() {
+            Some(&self.tokens[self.cursor])
         } else {
-            Some(&self.tokens[self.cursor..self.cursor + len])
+            None
+        }
+    }
+    
+    fn forward(&mut self, len: usize) {
+        if self.cursor < self.tokens.len() {
+            self.cursor += len;
         }
     }
     
     fn get_source(&self, range: &SourceRange) -> &'a [u8] {
+        // The lexer ensures that range is in bounds
         &self.content[range.start .. range.end]
     }
 }
@@ -65,41 +76,55 @@ impl<'a> Parser<'a> {
         let mut grammar = Grammar::new();
         
         // Before any containers appear a user might define some global options
-        if let Some(option_defs) = self.scanner.subslice(&mut |t| t.is_option_def()) {
-            for option_def in option_defs {
-                let grammar_option = self.parse_option_def(option_def)?;
-                grammar.add_global_option(grammar_option);
-            }
-        }
+        self.parse_global_options(&mut grammar)?;
+        
+        // Now only containers may follow
+        
         
         Ok(grammar)
     }
     
-    fn parse_option_def(&mut self, option_def: &Token) -> Result<GrammarOption, ParserError> {
-        match option_def {
-            Token::OptionDef(key, value) => {
-                match self.scanner.get_source(key) {
-                    keywords::OPTION_ENDIANNESS => {
-                        match self.scanner.get_source(value) {
-                            b"little" => Ok(GrammarOption::Endianness(Endianness::Little)),
-                            b"big" => Ok(GrammarOption::Endianness(Endianness::Big)),
-                            b"native" => Ok(GrammarOption::Endianness(Endianness::Native)),
-                            _ => Err(ParserError::UnknownKeyword(value.clone()))
-                        }
-                    },
-                    keywords::OPTION_SCHEDULING => {
-                        match self.scanner.get_source(value) {
-                            b"round-robin" => Ok(GrammarOption::Scheduling(Scheduling::RoundRobin)),
-                            b"random" => Ok(GrammarOption::Scheduling(Scheduling::Random)),
-                            _ => Err(ParserError::UnknownKeyword(value.clone())),
-                        }
-                    },
-                    _ => {
-                        Err(ParserError::UnknownOption(key.clone()))
-                    },
+    fn parse_global_options(&mut self, grammar: &mut Grammar) -> Result<(), ParserError> {
+        while let Some(token) = self.scanner.current() {
+            match token {
+                Token::OptionDef(key, value) => {
+                    match self.scanner.get_source(key) {
+                        keywords::OPTION_ENDIANNESS => {
+                            let value = match self.scanner.get_source(value) {
+                                b"little" => Endianness::Little,
+                                b"big" => Endianness::Big,
+                                b"native" => Endianness::Native,
+                                _ => {
+                                    return Err(ParserError::UnknownKeyword(value.clone()));
+                                }
+                            };
+                            
+                            grammar.options().set_endianness(value);
+                        },
+                        keywords::OPTION_SCHEDULING => {
+                            let value = match self.scanner.get_source(value) {
+                                b"round-robin" => Scheduling::RoundRobin,
+                                b"random" => Scheduling::Random,
+                                _ => {
+                                    return Err(ParserError::UnknownKeyword(value.clone()));
+                                }
+                            };
+                            
+                            grammar.options().set_scheduling(value);
+                        },
+                        _ => {
+                            return Err(ParserError::UnknownOption(key.clone()));
+                        },
+                    }
+                },
+                _ => {
+                    break;
                 }
-            },
-            _ => unreachable!(),
+            }
+            
+            self.scanner.forward(1);
         }
+        
+        Ok(())
     }
 }
