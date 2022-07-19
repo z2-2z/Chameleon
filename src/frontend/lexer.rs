@@ -69,7 +69,7 @@ impl<'a> Scanner<'a> {
         let mut skipped = 0;
         
         while self.cursor + skipped < self.view.len() {
-            if func(self.view.slice(self.cursor, 1)) {
+            if func(self.view.slice(self.cursor + skipped, 1)) {
                 skipped += 1;
             } else {
                 break;
@@ -597,151 +597,174 @@ impl<'a> Lexer<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::Lexer;
+    use super::{Lexer, SourceView};
     
     #[test]
     #[should_panic]
     fn unclosed_comment() {
         let input = "/*";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn empty_comment() {
         let input = "/**/struct x{}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn valid_nested_comment() {
         let input = "/*/**/*/struct x{}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     #[should_panic]
     fn unclosed_nested_comment() {
         let input = "/*/**/struct x{}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     #[should_panic]
     fn double_closed_comment() {
         let input = "/**/*/struct x{}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn comment_at_block_start() {
         let input = "struct x{/**/}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn comment_at_block_end() {
         let input = "struct x{x:y;/**/}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn comment_inbetween_vars() {
         let input = "struct x{x:y;/**/x:y;}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     #[should_panic]
     fn option_no_assignment() {
         let input = "option key;";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     #[should_panic]
     fn option_no_value() {
         let input = "option key=;";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn option_valid() {
         let input = "option key=value;";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     #[should_panic]
     fn option_reject_key() {
         let input = "option x!y=value;";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn valid_number_variable() {
         let input = "struct x{x:u16=3;}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn valid_numberset() {
         let input = "struct x{x:u16=-8,-3,0..1,101;}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn valid_nonsense_numberset() {
         let input = "struct x{x:u16=-,-,0..0,'\\X';}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn valid_numberset_chars() {
         let input = "struct x{x:u16='A','SS','D','FF';}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     #[should_panic]
     fn invalid_numberset_chars() {
         let input = "struct x{x:u16='AAAA','SSSS','DDDD','FFFF';}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn empty_string_literal() {
         let input = "struct x{x:string=\"\";}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn valid_string_literal() {
         let input = "struct x{x:string=\"\\\" hello world! \\xCC\\x0d\";}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn duplicate_variable_flags() {
         let input = "struct x{optional optional optional repeats 3 repeats 4 x:x;}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn multiple_structs() {
         let input = "struct x{}struct x{}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn test_nested_blocks() {
         let input = "struct x{x:y{x:y{x:y;};};}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
     fn test_number_formats() {
         let input = "struct x{x:x=0x01..0o77,0b10101;}";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
     }
     
     #[test]
@@ -763,6 +786,8 @@ struct Root {
     ident: ELFIdent;
 }        
 ";
-        Lexer::new(input.as_bytes()).lex().unwrap();
+        let view = SourceView::new(input);
+
+        Lexer::new(&view).lex().unwrap();
     }
 }

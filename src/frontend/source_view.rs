@@ -21,7 +21,7 @@ pub struct SourceView {
     length: usize,
 }
 impl SourceView {
-    #[cfg(test)]
+    #[cfg(any(test, fuzzing))]
     pub fn new(content: &str) -> Self {
         Self {
             content: content.to_string(),

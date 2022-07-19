@@ -1,8 +1,11 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 
-use chameleon::Lexer;
+use chameleon::{Lexer, SourceView};
 
 fuzz_target!(|data: &[u8]| {
-    let _ = Lexer::new(data).lex();
+    if let Ok(s) = std::str::from_utf8(data) {
+        let view = SourceView::new(s);
+        let _ = Lexer::new(&view).lex();
+    }
 });
