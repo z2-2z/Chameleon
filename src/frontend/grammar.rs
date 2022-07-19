@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::default::Default;
 use std::ops::Range;
 
-use crate::frontend::range::SourceRange;
+use crate::frontend::source_view::SourceRange;
 
 pub type NumbersetId = usize;
 pub type ContainerId = usize;
@@ -52,6 +52,11 @@ impl ContainerOptions {
     pub fn set_scheduling(&mut self, value: Scheduling) {
         self.scheduling = value;
     }
+}
+
+pub trait HasOptions {
+    fn options_mut(&mut self) -> &mut ContainerOptions;
+    fn options(&self) -> &ContainerOptions;
 }
 
 /// Storage for all possible options of a variable
@@ -109,6 +114,33 @@ pub struct Container {
     name: Option<SourceRange>,
     variables: Vec<Variable>,
 }
+impl Container {
+    pub fn new(id: ContainerId, name: Option<SourceRange>) -> Self {
+        Self {
+            id,
+            options: ContainerOptions::default(),
+            name,
+            variables: Vec::new(),
+        }
+    }
+    
+    pub fn name(&self) -> Option<&SourceRange> {
+        self.name.as_ref()
+    }
+    
+    pub fn id(&self) -> ContainerId {
+        self.id
+    }
+}
+impl HasOptions for Container {
+    fn options_mut(&mut self) -> &mut ContainerOptions {
+        &mut self.options
+    }
+    
+    fn options(&self) -> &ContainerOptions {
+        &self.options
+    }
+}
 
 /// A set of numbers of generic type
 pub struct Numberset<T> {
@@ -128,6 +160,7 @@ pub enum NumbersetType {
 pub struct Grammar {
     options: ContainerOptions,
     containers: BTreeMap<ContainerId, Container>,
+    container_cursor: ContainerId,
     number_sets: BTreeMap<NumbersetId, NumbersetType>,
     strings: BTreeMap<StringId, SourceRange>,
     root: Option<ContainerId>,
@@ -137,13 +170,36 @@ impl Grammar {
         Self {
             options: ContainerOptions::default(),
             containers: BTreeMap::new(),
+            container_cursor: ContainerId::default(),
             number_sets: BTreeMap::new(),
             strings: BTreeMap::new(),
             root: None,
         }
     }
     
-    pub fn options(&mut self) -> &mut ContainerOptions {
+    pub fn add_container(&mut self, container: Container) {
+        let key = container.id;
+        
+        assert!( self.containers.insert(key, container).is_none() );
+    }
+    
+    pub fn reserve_container_id(&mut self) -> ContainerId {
+        let ret = self.container_cursor;
+        self.container_cursor += 1;
+        ret
+    }
+    
+    pub fn set_root(&mut self, root: ContainerId) {
+        self.root = Some(root);
+    }
+}
+
+impl HasOptions for Grammar {
+    fn options_mut(&mut self) -> &mut ContainerOptions {
         &mut self.options
+    }
+    
+    fn options(&self) -> &ContainerOptions {
+        &self.options
     }
 }

@@ -1,18 +1,15 @@
 use crate::frontend::keywords;
-use crate::frontend::range::{SourceRange, NewRange};
+use crate::frontend::source_view::{SourceView, SourceRange, NewRange};
 
-macro_rules! string {
-    ($kw:expr) => {
-        std::str::from_utf8($kw).unwrap()
-    };
-}
-
+//TODO: specific variant for each error case
 #[derive(Debug)]
 pub enum LexerError {
     UnexpectedInput(String),
     UnexpectedEOF(String),
 }
 
+//TODO: cursor position
+#[derive(PartialEq, Debug)]
 pub enum Token {
     /// Argument: Offset and size of identifier
     ContainerOpen(SourceRange),
@@ -41,53 +38,38 @@ pub enum Token {
     BlockOpen,
     BlockClose,
 }
-impl Token {
-    pub fn is_option_def(&self) -> bool {
-        match self {
-            Token::OptionDef(_, _) => true,
-            _ => false,
-        }
-    }
-}
 
 struct Scanner<'a> {
-    content: &'a [u8],
+    view: &'a SourceView,
     cursor: usize,
 }
 impl<'a> Scanner<'a> {
-    fn new(content: &'a [u8]) -> Self {
+    fn new(view: &'a SourceView) -> Self {
         Self {
-            content,
+            view,
             cursor: 0,
         }
     }
     
-    fn peek(&self, buf: &[u8]) -> bool {
-        if self.cursor.saturating_add(buf.len()) <= self.content.len() {
-            if &self.content[self.cursor..self.cursor + buf.len()] == buf {
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        }
+    fn peek(&self, buf: &str) -> bool {
+        // we only compare against ASCII strings so buf.len() is fine
+        self.view.slice(self.cursor, buf.len()) == buf
     }
     
     fn forward(&mut self, len: usize) {
-        if self.cursor < self.content.len() {
+        if self.cursor < self.view.len() {
             self.cursor += len;
         }
     }
     
     fn skip<F>(&mut self, func: &mut F) -> usize
     where
-        F: FnMut(u8) -> bool,
+        F: FnMut(&str) -> bool,
     {
         let mut skipped = 0;
         
-        while self.cursor + skipped < self.content.len() {
-            if func(self.content[self.cursor + skipped]) {
+        while self.cursor + skipped < self.view.len() {
+            if func(self.view.slice(self.cursor, 1)) {
                 skipped += 1;
             } else {
                 break;
@@ -98,156 +80,79 @@ impl<'a> Scanner<'a> {
         skipped
     }
     
-    fn expect(&mut self, buf: &[u8]) -> Result<(), LexerError> {
+    fn expect(&mut self, buf: &str) -> Result<(), LexerError> {
         if self.peek(buf) {
             self.forward(buf.len());
             Ok(())
         } else {
             Err(LexerError::UnexpectedInput(
-                format!("Expected '{}'", string!(buf))
+                format!("Expected '{}'", buf)
             ))
         }
     }
     
     fn done(&self) -> bool {
-        self.cursor >= self.content.len()
-    }
-    
-    /// Returns line number and column for a given cursor position
-    pub fn line_info(&self, cursor: usize) -> (usize, usize) {
-        let mut line = 1;
-        let mut col = 1;
-        let cursor = std::cmp::min(cursor, self.content.len());
-        
-        //TODO: os-sensitive line ending detection
-        
-        for i in 0..cursor {
-            if self.content[i] == b'\n' {
-                line += 1;
-                col = 0;
-            }
-            
-            col += 1;
-        }
-        
-        (line, col)
-    }
-    
-    fn substring(&self, range: &SourceRange) -> Option<&[u8]> {
-        if range.start < self.content.len() && range.end <= self.content.len() {
-            Some(&self.content[range.start .. range.end])
-        } else {
-            None
-        }
+        self.cursor >= self.view.len()
     }
 }
 
 #[inline]
-fn is_whitespace(c: u8) -> bool {
-    c == b' ' || c == b'\r' || c == b'\n' || c == b'\t'
+fn is_whitespace(s: &str) -> bool {
+    s == " " || s == "\r" || s == "\n" || s == "\r\n" || s == "\t"
 }
 
 /// An identifier is [0-9a-zA-Z_]+
 #[inline]
-fn is_identifier(c: u8) -> bool {
-    (c >= 0x30 && c < 0x3a) || (c >= 0x41 && c < 0x5B) || (c >= 0x61 && c < 0x7B) || c == b'_'
+fn is_identifier(s: &str) -> bool {
+    if s.len() == 1 {
+        let c = s.as_bytes()[0];
+        (c >= 0x30 && c < 0x3a) || (c >= 0x41 && c < 0x5B) || (c >= 0x61 && c < 0x7B) || c == b'_'
+    } else {
+        false
+    }
 }
 
 /// Charset for an option value: all chars except whitespaces and ';'
 #[inline]
-fn is_option_value(c: u8) -> bool {
-    (c > 0x20 && c < 0x3B) || (c > 0x3B && c < 0x7F)
+fn is_option_value(s: &str) -> bool {
+    if s.len() == 1 {
+        let c = s.as_bytes()[0];
+        (c > 0x20 && c < 0x3B) || (c > 0x3B && c < 0x7F)
+    } else {
+        false
+    }
 }
 
 /// charset for signed integers + prefix characters 0x 0o 0b
 #[inline]
-fn is_integer(c: u8) -> bool {
-    (c >= 0x30 && c < 0x3A) || c == b'-' || c == b'x' || c == b'o' || c == b'b'
+fn is_integer(s: &str) -> bool {
+    if s.len() == 1 {
+        let c = s.as_bytes()[0];
+        (c >= 0x30 && c < 0x3A) || c == b'-' || c == b'x' || c == b'o' || c == b'b'
+    } else {
+        false
+    }
 }
 
 /// charset for chars: everything printable, escape sequences are allowed!
 #[inline]
-fn is_char(c: u8) -> bool {
-    c >= 0x20 && c < 0x7F
+fn is_char(s: &str) -> bool {
+    if s.len() == 1 {
+        let c = s.as_bytes()[0];
+        c >= 0x20 && c < 0x7F
+    } else {
+        false
+    }
 }
 
 pub struct Lexer<'a> {
     scanner: Scanner<'a>,
 }
 impl<'a> Lexer<'a> {
-    pub fn new(content: &'a [u8]) -> Self {
+    pub fn new(view: &'a SourceView) -> Self {
         Self {
-            scanner: Scanner::new(content),
+            scanner: Scanner::new(view),
         }
-    }
-    
-    pub fn describe_token(&self, token: &Token) {
-        match token {
-            Token::OptionDef(key, value) => {
-                println!("Option({} = {})", string!(self.scanner.substring(key).unwrap()), string!(self.scanner.substring(value).unwrap()));
-            },
-            Token::ContainerOpen(name) => {
-                println!("ContainerOpen({})", string!(&self.scanner.substring(name).unwrap()));
-            },
-            Token::ContainerClose => {
-                println!("ContainerClose");
-            },
-            Token::VariableStart => {
-                println!("VariableStart");
-            },
-            Token::VariableEnd => {
-                println!("VariableEnd");
-            },
-            Token::VariableOptional => {
-                println!("VariableOptional");
-            },
-            Token::VariableRepeatStart => {
-                println!("VariableRepeatStart");
-            },
-            Token::VariableRepeatEnd => {
-                println!("VariableRepeatEnd");
-            },
-            Token::NumbersetStart => {
-                println!("NumbersetStart");
-            },
-            Token::NumbersetEnd => {
-                println!("NumbersetEnd");
-            },
-            Token::Character(literal) => {
-                println!("Character({})", string!(self.scanner.substring(literal).unwrap()));
-            },
-            Token::Integer(literal) => {
-                println!("Integer({})", string!(self.scanner.substring(literal).unwrap()));
-            },
-            Token::IntegerRange(lower, upper) => {
-                println!("IntegerRange({} .. {})", string!(self.scanner.substring(lower).unwrap()), string!(self.scanner.substring(upper).unwrap()));
-            },
-            Token::VariableType(name) => {
-                println!("VariableType({})", string!(self.scanner.substring(name).unwrap()));
-            },
-            Token::String(literal) => {
-                println!("String({})", string!(self.scanner.substring(literal).unwrap()));
-            },
-            Token::VariableValueStart => {
-                println!("VariableValueStart");
-            },
-            Token::VariableValueEnd => {
-                println!("VariableValueEnd");
-            },
-            Token::BlockOpen => {
-                println!("BlockOpen");
-            },
-            Token::BlockClose => {
-                println!("BlockClose");
-            },
-        }
-    }
-    
-    pub fn describe_error(&self, error: LexerError) {
-        // use scanner and other data to add some context
-        // information to an error message
-        let (line, col) = self.scanner.line_info(self.scanner.cursor);
-        println!("{:?} at line {} col {}", error, line, col);
     }
     
     pub fn lex(&mut self) -> Result<Vec<Token>, LexerError> {
@@ -269,14 +174,14 @@ impl<'a> Lexer<'a> {
             // then it must be whitespace
             else if self.scanner.skip(&mut is_whitespace) == 0 {
                 return Err(LexerError::UnexpectedInput(
-                    format!("Expected '{}' or '{}' or whitespace or comment", string!(keywords::CONTAINER), string!(keywords::OPTION))
+                    format!("Expected '{}' or '{}' or whitespace or comment", keywords::CONTAINER, keywords::OPTION)
                 ));
             }
         }
         
         if tokens.is_empty() {
             Err(LexerError::UnexpectedEOF(
-                format!("Expected '{}' or '{}'", string!(keywords::CONTAINER), string!(keywords::OPTION))
+                format!("Expected '{}' or '{}'", keywords::CONTAINER, keywords::OPTION)
             ))
         } else {
             Ok(tokens)
@@ -303,7 +208,7 @@ impl<'a> Lexer<'a> {
         }
         
         Err(LexerError::UnexpectedEOF(
-            format!("Expected end of comment '{}'", string!(keywords::COMMENT_CLOSE))
+            format!("Expected end of comment '{}'", keywords::COMMENT_CLOSE)
         ))
     }
     
@@ -320,7 +225,7 @@ impl<'a> Lexer<'a> {
         // At least one whitespace required after keyword
         if self.scanner.skip(&mut is_whitespace) == 0 {
             return Err(LexerError::UnexpectedInput(
-                format!("Expected whitespace after '{}'", string!(keywords::OPTION))
+                format!("Expected whitespace after '{}'", keywords::OPTION)
             ));
         }
         
@@ -329,7 +234,7 @@ impl<'a> Lexer<'a> {
         identifier_end = match self.scanner.skip(&mut is_identifier) {
             0 => {
                 return Err(LexerError::UnexpectedInput(
-                    format!("Expected an identifier after '{}'", string!(keywords::OPTION))
+                    format!("Expected an identifier after '{}'", keywords::OPTION)
                 ));
             },
             len @ _ => identifier_start + len,
@@ -349,7 +254,7 @@ impl<'a> Lexer<'a> {
         value_end = match self.scanner.skip(&mut is_option_value) {
             0 => {
                 return Err(LexerError::UnexpectedInput(
-                    format!("Expected value after '{}'", string!(keywords::ASSIGNMENT))
+                    format!("Expected value after '{}'", keywords::ASSIGNMENT)
                 ));
             },
             len @ _ => value_start + len,
@@ -384,7 +289,7 @@ impl<'a> Lexer<'a> {
         // after the keyword whitespaces may follow
         if self.scanner.skip(&mut is_whitespace) < 1 {
             return Err(LexerError::UnexpectedInput(
-                format!("Expected whitespace after '{}'", string!(keywords::CONTAINER))
+                format!("Expected whitespace after '{}'", keywords::CONTAINER)
             ));
         }
         
@@ -393,7 +298,7 @@ impl<'a> Lexer<'a> {
         name_end = match self.scanner.skip(&mut is_identifier) {
             0 => {
                 return Err(LexerError::UnexpectedInput(
-                    format!("Expected name after '{}'", string!(keywords::CONTAINER))
+                    format!("Expected name after '{}'", keywords::CONTAINER)
                 ));
             },
             len @ _ => name_start + len,
@@ -472,7 +377,7 @@ impl<'a> Lexer<'a> {
                 // white space must follow the keyword
                 if self.scanner.skip(&mut is_whitespace) == 0 {
                     return Err(LexerError::UnexpectedInput(
-                        format!("Expected whitespace after '{}'", string!(keywords::VAROPT_REPEATS))
+                        format!("Expected whitespace after '{}'", keywords::VAROPT_REPEATS)
                     ));
                 }
             } 
@@ -483,7 +388,7 @@ impl<'a> Lexer<'a> {
                 // white space must follow the keyword
                 if self.scanner.skip(&mut is_whitespace) == 0 {
                     return Err(LexerError::UnexpectedInput(
-                        format!("Expected whitespace after '{}'", string!(keywords::VAROPT_REPEATS))
+                        format!("Expected whitespace after '{}'", keywords::VAROPT_REPEATS)
                     ));
                 }
                 
@@ -528,7 +433,7 @@ impl<'a> Lexer<'a> {
         let type_end = match self.scanner.skip(&mut is_identifier) {
             0 => {
                 return Err(LexerError::UnexpectedInput(
-                    format!("Expected type name after '{}'", string!(keywords::VAR_TYPE_SEP))
+                    format!("Expected type name after '{}'", keywords::VAR_TYPE_SEP)
                 ));
             },
             len @ _ => type_start + len,
@@ -578,24 +483,24 @@ impl<'a> Lexer<'a> {
         
         while !self.scanner.done() {
             // Do we have a simple char ?
-            if self.scanner.peek(b"'") {
+            if self.scanner.peek("'") {
                 self.scanner.forward(1);
                 let mut seen_backslash = false;
                 
                 let char_start = self.scanner.cursor;
-                let char_end = match self.scanner.skip(&mut |c| {
-                    if c == b'\'' {
+                let char_end = match self.scanner.skip(&mut |s| {
+                    if s == "'" {
                         let ret = seen_backslash;
                         seen_backslash = false;
                         ret
                     } else if seen_backslash {
                         seen_backslash = false;
                         true
-                    } else if c == b'\\' {
+                    } else if s == "\\" {
                         seen_backslash = true;
                         true
                     } else {
-                        is_char(c)
+                        is_char(s)
                     }
                 }) {
                     1 => char_start + 1,
@@ -631,7 +536,7 @@ impl<'a> Lexer<'a> {
                     let limit_end = match self.scanner.skip(&mut is_integer) {
                         0 => {
                             return Err(LexerError::UnexpectedInput(
-                                format!("Expected number after '{}'", string!(keywords::RANGE_OP))
+                                format!("Expected number after '{}'", keywords::RANGE_OP)
                             ));
                         },
                         len @ _ => limit_start + len,
@@ -666,19 +571,19 @@ impl<'a> Lexer<'a> {
         
         let mut seen_backslash = false;
         let string_start = self.scanner.cursor;
-        let string_end = string_start + self.scanner.skip(&mut |c| {
-            if c == keywords::STRING_DELIM[0] {
+        let string_end = string_start + self.scanner.skip(&mut |s| {
+            if s == keywords::STRING_DELIM {
                 let ret = seen_backslash;
                 seen_backslash = false;
                 ret
             } else if seen_backslash {
                 seen_backslash = false;
                 true
-            } else if c == b'\\' {
+            } else if s == "\\" {
                 seen_backslash = true;
                 true
             } else {
-                is_char(c)
+                is_char(s)
             }
         });
         

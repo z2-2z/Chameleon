@@ -7,3 +7,6 @@ edition = "2021"
 lto = true
 codegen-unis = 1
 debug = true
+
+[dependencies]
+unicode-segmentation = "1.9.0"
