@@ -1,6 +1,8 @@
-/* a valid chm file */
 option asdf=asdf;
 
-struct a̐éö̲{
-    röhrich: asdf;
+struct asdf{
+    l:asdf="";
+    l:asdf=1,'a';
+    l:oneof {};
+    l:asdf;
 }

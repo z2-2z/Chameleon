@@ -29,36 +29,35 @@ pub enum LexerError {
     InvalidNumber(usize),
 }
 
-//TODO: position in source
 /// The tokens that get passed to the parser
 #[derive(PartialEq, Debug)]
 pub enum Token {
     /// A container was created with a given name
-    ContainerOpen(SourceRange),
+    ContainerOpen(usize, SourceRange),
     
     /// The current container is being closed
     ContainerClose,
     
     /// An option was set in a block
-    OptionDef(SourceRange, SourceRange),
+    OptionDef(usize, SourceRange, SourceRange),
     
     /// A variable definition follows
-    VariableStart,
+    VariableStart(usize),
     
     /// The variable definition finished
     VariableEnd,
     
     /// The variable is optional
-    VariableOptional,
+    VariableOptional(usize),
     
     /// The variable has a repeats option
-    VariableRepeatStart,
+    VariableRepeatStart(usize),
     
     /// The variables repeats option has ended
     VariableRepeatEnd,
     
     /// A numberset follows
-    NumbersetStart,
+    NumbersetStart(usize),
     
     /// No more numberset entries follow
     NumbersetEnd,
@@ -79,13 +78,13 @@ pub enum Token {
     String(SourceRange),
     
     /// A variable has an assigned value
-    VariableValueStart,
+    VariableValueStart(usize),
     
     /// The end of an assignment to a variable
     VariableValueEnd,
     
     /// A block was opened
-    BlockOpen,
+    BlockOpen(usize),
     
     /// The currently active block is being closed
     BlockClose,
@@ -362,6 +361,7 @@ impl<'a> Lexer<'a> {
         if option_end > option_start && value_end > value_start && identifier_end > identifier_start {
             tokens.push(
                 Token::OptionDef(
+                    option_start,
                     SourceRange::new(identifier_start, identifier_end),
                     SourceRange::new(value_start, value_end),
                 )
@@ -374,6 +374,7 @@ impl<'a> Lexer<'a> {
     fn parse_container(&mut self, tokens: &mut Vec<Token>) -> Result<(), LexerError> {
         let name_start;
         let name_end;
+        let container_start = self.scanner.cursor;
         
         self.scanner.expect(keywords::CONTAINER)?;
         
@@ -396,7 +397,7 @@ impl<'a> Lexer<'a> {
         };
         
         tokens.push(
-            Token::ContainerOpen(SourceRange::new(name_start, name_end))
+            Token::ContainerOpen(container_start, SourceRange::new(name_start, name_end))
         );
         
         // after the name whitespaces may follow
@@ -411,9 +412,11 @@ impl<'a> Lexer<'a> {
     }
     
     fn parse_block(&mut self, tokens: &mut Vec<Token>) -> Result<(), LexerError> {
+        let block_start = self.scanner.cursor;
+        
         self.scanner.expect(keywords::BLOCK_OPEN)?;
         
-        tokens.push(Token::BlockOpen);
+        tokens.push(Token::BlockOpen(block_start));
         
         self.parse_variable_listing(tokens)?;
         
@@ -456,13 +459,15 @@ impl<'a> Lexer<'a> {
     }
     
     fn parse_variable_definition(&mut self, tokens: &mut Vec<Token>) -> Result<(), LexerError> {
-        tokens.push(Token::VariableStart);
+        let variable_start = self.scanner.cursor;
+        
+        tokens.push(Token::VariableStart(variable_start));
         
         // Variables may start with options
         while !self.scanner.done() {
             // variable optional ?
             if self.scanner.peek(keywords::VAROPT_OPTIONAL) {
-                tokens.push(Token::VariableOptional);
+                tokens.push(Token::VariableOptional(variable_start));
                 self.scanner.forward(keywords::VAROPT_OPTIONAL.len());
                 
                 // white space must follow the keyword
@@ -483,7 +488,7 @@ impl<'a> Lexer<'a> {
                     ));
                 }
                 
-                tokens.push(Token::VariableRepeatStart);
+                tokens.push(Token::VariableRepeatStart(variable_start));
                 
                 self.parse_numberset(tokens)?;
                 
@@ -539,9 +544,9 @@ impl<'a> Lexer<'a> {
         if self.scanner.peek(keywords::ASSIGNMENT) {
             self.scanner.forward(keywords::ASSIGNMENT.len());
             
-            tokens.push(Token::VariableValueStart);
-            
             self.scanner.skip(&mut is_whitespace_nonl);
+            
+            tokens.push(Token::VariableValueStart(self.scanner.cursor));
             
             // After an equals sign we either expect a string literal or a numberset
             if self.scanner.peek(keywords::STRING_DELIM) {
@@ -582,7 +587,7 @@ impl<'a> Lexer<'a> {
     }
     
     fn parse_numberset(&mut self, tokens: &mut Vec<Token>) -> Result<(), LexerError> {
-        tokens.push(Token::NumbersetStart);
+        tokens.push(Token::NumbersetStart(self.scanner.cursor));
         
         while !self.scanner.done() {
             // Do we have a simple char ?
