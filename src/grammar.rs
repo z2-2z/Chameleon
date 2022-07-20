@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 use std::collections::btree_map::Values;
 use std::default::Default;
 use std::ops::Range;
+use ahash;
+use std::hash::Hasher;
 
 use crate::frontend::SourceRange;
 
@@ -166,10 +168,7 @@ impl HasOptions for Container {
 }
 
 /// A set of numbers of generic type
-pub struct Numberset<T> {
-    id: NumbersetId,
-    content: Vec<Range<T>>,
-}
+pub type Numberset<T> = Vec<Range<T>>;
 
 /// Lists the different types numbersets can have
 pub enum NumbersetType {
@@ -178,13 +177,47 @@ pub enum NumbersetType {
     U32(Numberset<u32>),
     U64(Numberset<u64>),
 }
+impl NumbersetType {
+    fn id(&self) -> NumbersetId {
+        let mut hasher = ahash::AHasher::new_with_keys(0, 0);
+        
+        match self {
+            NumbersetType::U8(set) => {
+                for range in set {
+                    hasher.write_u8(range.start);
+                    hasher.write_u8(range.end);
+                }
+            },
+            NumbersetType::U16(set) => {
+                for range in set {
+                    hasher.write_u16(range.start);
+                    hasher.write_u16(range.end);
+                }
+            },
+            NumbersetType::U32(set) => {
+                for range in set {
+                    hasher.write_u32(range.start);
+                    hasher.write_u32(range.end);
+                }
+            },
+            NumbersetType::U64(set) => {
+                for range in set {
+                    hasher.write_u64(range.start);
+                    hasher.write_u64(range.end);
+                }
+            },
+        }
+        
+        hasher.finish() as NumbersetId
+    }
+}
 
 /// Represents an entire grammar
 pub struct Grammar {
     options: ContainerOptions,
     containers: BTreeMap<ContainerId, Container>,
     container_cursor: ContainerId,
-    number_sets: BTreeMap<NumbersetId, NumbersetType>,
+    numbersets: BTreeMap<NumbersetId, NumbersetType>,
     strings: BTreeMap<StringId, SourceRange>,
     root: Option<ContainerId>,
 }
@@ -194,7 +227,7 @@ impl Grammar {
             options: ContainerOptions::default(),
             containers: BTreeMap::new(),
             container_cursor: ContainerId::default(),
-            number_sets: BTreeMap::new(),
+            numbersets: BTreeMap::new(),
             strings: BTreeMap::new(),
             root: None,
         }
@@ -218,6 +251,17 @@ impl Grammar {
     
     pub fn containers(&self) -> Values<'_, ContainerId, Container> {
         self.containers.values()
+    }
+    
+    pub fn add_numberset(&mut self, set: NumbersetType) -> NumbersetId {
+        let id = set.id();
+        
+        if self.numbersets.get(&id).is_some() {
+            id
+        } else {
+            assert!( self.numbersets.insert(id, set).is_none() );
+            id
+        }
     }
 }
 

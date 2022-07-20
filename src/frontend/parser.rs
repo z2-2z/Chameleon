@@ -5,7 +5,6 @@ use crate::{
         Scheduling, Variable,
         VariableType, IntegerValue,
         VariableOptions, NumbersetType,
-        NumbersetId,
     },
     frontend::{
         lexer::{Token, TokenId},
@@ -301,8 +300,8 @@ impl<'a> Parser<'a> {
                     
                     self.scanner.forward(1);
                     let ranges = self.parse_numberset::<u32>(grammar, false)?;
-                    todo!();
-                    //var_opts.set_repeats(id);
+                    let id = grammar.add_numberset(NumbersetType::U32(ranges));
+                    var_opts.set_repeats(id);
                     had_repeats = true;
                 },
                 _ => {
@@ -382,6 +381,7 @@ impl<'a> Parser<'a> {
         while let Some(token) = self.scanner.current() {
             match token {
                 Token::NumbersetEnd => {
+                    self.scanner.forward(1);
                     break;
                 },
                 Token::Integer(literal) => {
