@@ -4,7 +4,8 @@ option asdf=asdf;
 struct asdf {
     option x = y;
 
-    asdf: asdf = 12,1..1;
-    /* comment here */
-    x: y;
+    asdf: asdf {
+        option x = y;
+        /* comment */
+    };    
 }

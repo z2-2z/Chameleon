@@ -22,6 +22,9 @@ pub enum LexerError {
     /// We encountered an invalid character literal
     InvalidCharLiteral(usize),
     
+    /// We expected a literal but found something different
+    ExpectedLiteral(usize, String),
+    
     /// We encountered an invalid number literal
     InvalidNumber(usize),
 }
@@ -98,6 +101,17 @@ impl<'a> Scanner<'a> {
         
         self.forward(skipped);
         skipped
+    }
+    
+    fn check<F>(&mut self, func: &mut F) -> bool
+    where
+        F: FnMut(&str) -> bool,
+    {
+        if self.cursor < self.view.len() {
+            func(self.view.slice(self.cursor, 1))
+        } else {
+            false
+        }
     }
     
     fn expect(&mut self, buf: &str) -> Result<(), LexerError> {
@@ -242,7 +256,7 @@ impl<'a> Lexer<'a> {
         }
         
         Err(LexerError::EOF(
-            "Expected end of comment".to_string()
+            "Got an unclosed comment".to_string()
         ))
     }
     
@@ -478,7 +492,7 @@ impl<'a> Lexer<'a> {
         // Optionally whitespaces may follow the type
         self.scanner.skip(&mut is_whitespace_nonl);
         
-        // After the type we may have an assignment with '='
+        // After the type we either have an assignment with '='
         if self.scanner.peek(keywords::ASSIGNMENT) {
             self.scanner.forward(keywords::ASSIGNMENT.len());
             
@@ -489,8 +503,13 @@ impl<'a> Lexer<'a> {
             // After an equals sign we either expect a string literal or a numberset
             if self.scanner.peek(keywords::STRING_DELIM) {
                 self.parse_string_literal(tokens)?;
-            } else {
+            } else if self.scanner.check(&mut |s| s == "'" || is_integer(s)) {
                 self.parse_numberset(tokens)?;
+            } else {
+                return Err(LexerError::ExpectedLiteral(
+                    self.scanner.cursor,
+                    "string OR numberset".to_string(),
+                ));
             }
             
             tokens.push(Token::VariableValueEnd);
@@ -503,6 +522,13 @@ impl<'a> Lexer<'a> {
             
             // after a block whitespaces may follow
             //self.scanner.skip(&mut is_whitespace);
+        }
+        // or we don't have any value
+        else if !self.scanner.peek(keywords::TERMINATE_STATEMENT) {
+            return Err(LexerError::ExpectedChar(
+                self.scanner.cursor,
+                format!("{} OR {} OR {}", keywords::ASSIGNMENT, keywords::BLOCK_OPEN, keywords::TERMINATE_STATEMENT)
+            ));
         }
         
         self.scanner.expect(keywords::TERMINATE_STATEMENT)?;

@@ -116,6 +116,11 @@ fn print_lexing_error(view: &frontend::SourceView, error: frontend::LexerError) 
             writeln!(&mut stream, "In line {} column {}: Invalid character constant", line, col)?;
             print_line_context(&mut stream, view, line, col, 1)?;
         },
+        frontend::LexerError::ExpectedLiteral(pos, literals) => {
+            let (line, col) = view.lineinfo(pos);
+            writeln!(&mut stream, "In line {} column {}: Expected literal '{}'", line, col, literals)?;
+            print_line_context(&mut stream, view, line, col, 1)?;
+        },
     }
     
     writeln!(&mut stream, "")?;
