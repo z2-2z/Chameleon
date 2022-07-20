@@ -14,7 +14,10 @@ pub static NUMBERSET_DELIM: &str = ",";
 pub static VAR_TYPE_SEP: &str = ":";
 pub static STRING_DELIM: &str = "\"";
 
-//pub const OPTION_ENDIANNESS: &str = "endianness";
-//pub const OPTION_SCHEDULING: &str = "scheduling";
+pub const OPTION_ENDIANNESS: &str = "endianness";
+pub const OPTION_SCHEDULING: &str = "scheduling";
+
+pub const TYPE_U8: &str = "u8";
+pub const TYPE_I8: &str = "i8";
 
 //pub static ROOT_CONTAINER: &str = "Root";

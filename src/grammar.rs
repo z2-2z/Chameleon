@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
+use std::collections::btree_map::Values;
 use std::default::Default;
 use std::ops::Range;
 
-use crate::frontend::source_view::SourceRange;
+use crate::frontend::SourceRange;
 
 pub type NumbersetId = usize;
 pub type ContainerId = usize;
@@ -99,6 +100,7 @@ pub enum VariableType {
     Bytes(BytearrayValue),
     Oneof(ContainerId),
     ContainerRef(ContainerId),
+    ResolveContainerRef(SourceRange),
 }
 
 /// A single variable in a container
@@ -191,6 +193,10 @@ impl Grammar {
     
     pub fn set_root(&mut self, root: ContainerId) {
         self.root = Some(root);
+    }
+    
+    pub fn containers(&self) -> Values<'_, ContainerId, Container> {
+        self.containers.values()
     }
 }
 

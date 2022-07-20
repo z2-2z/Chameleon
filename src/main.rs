@@ -2,6 +2,10 @@ use termcolor;
 use termcolor::WriteColor;
 use std::io::Write;
 
+//TODO: remove
+#[allow(dead_code)]
+mod grammar;
+
 mod frontend;
 
 /// Given a number `n`, return how many decimal digits are
@@ -68,7 +72,7 @@ fn print_line_context(stream: &mut termcolor::StandardStream, view: &frontend::S
 }
 
 /// Print a neat error message for the given lexer error
-fn print_lexing_error(view: &frontend::SourceView, error: frontend::LexerError) -> Result<(), std::io::Error> {
+fn print_lexing_error(view: &frontend::SourceView, error: &frontend::LexerError) -> Result<(), std::io::Error> {
     let mut bold_red = termcolor::ColorSpec::new();
     bold_red.set_bg(None);
     bold_red.set_bold(true);
@@ -93,44 +97,99 @@ fn print_lexing_error(view: &frontend::SourceView, error: frontend::LexerError) 
             writeln!(&mut stream, "Hit an unexpected EOF: {}", message)?;
         },
         frontend::LexerError::ExpectedIdentifier(pos) => {
-            let (line, col) = view.lineinfo(pos);
+            let (line, col) = view.lineinfo(*pos);
             writeln!(&mut stream, "In line {} column {}: Expected an identifier", line, col)?;
             print_line_context(&mut stream, view, line, col, 1)?;
         },
         frontend::LexerError::MissingWhitespace(pos) => {
-            let (line, col) = view.lineinfo(pos);
+            let (line, col) = view.lineinfo(*pos);
             writeln!(&mut stream, "In line {} column {}: A whitespace is missing", line, col)?;
             print_line_context(&mut stream, view, line, col, 1)?;
         },
         frontend::LexerError::ExpectedChar(pos, c) => {
-            let (line, col) = view.lineinfo(pos);
+            let (line, col) = view.lineinfo(*pos);
             writeln!(&mut stream, "In line {} column {}: Expected the character '{}'", line, col, c)?;
             print_line_context(&mut stream, view, line, col, 1)?;
         },
         frontend::LexerError::ExpectedKeyword(pos, keyword) =>  {
-            let (line, col) = view.lineinfo(pos);
+            let (line, col) = view.lineinfo(*pos);
             writeln!(&mut stream, "In line {} column {}: Expected the keyword '{}'", line, col, keyword)?;
             print_line_context(&mut stream, view, line, col, 1)?;
         },
         frontend::LexerError::InvalidNumber(pos) => {
-            let (line, col) = view.lineinfo(pos);
+            let (line, col) = view.lineinfo(*pos);
             writeln!(&mut stream, "In line {} column {}: Invalid number", line, col)?;
             print_line_context(&mut stream, view, line, col, 1)?;
         },
         frontend::LexerError::InvalidCharLiteral(pos) => {
-            let (line, col) = view.lineinfo(pos);
+            let (line, col) = view.lineinfo(*pos);
             writeln!(&mut stream, "In line {} column {}: Invalid character constant", line, col)?;
             print_line_context(&mut stream, view, line, col, 1)?;
         },
         frontend::LexerError::ExpectedLiteral(pos, literals) => {
-            let (line, col) = view.lineinfo(pos);
+            let (line, col) = view.lineinfo(*pos);
             writeln!(&mut stream, "In line {} column {}: Expected literal '{}'", line, col, literals)?;
             print_line_context(&mut stream, view, line, col, 1)?;
         },
     }
     
     writeln!(&mut stream, "")?;
+    Ok(())
+}
+
+/// Print a neat error message for a given parser error
+fn print_parsing_error(view: &frontend::SourceView, error: &frontend::ParserError) -> Result<(), std::io::Error> {
+    let mut bold_red = termcolor::ColorSpec::new();
+    bold_red.set_bg(None);
+    bold_red.set_bold(true);
+    bold_red.set_fg(Some(termcolor::Color::Red));
+    let mut slim_red = termcolor::ColorSpec::new();
+    slim_red.set_bg(None);
+    slim_red.set_bold(false);
+    slim_red.set_fg(Some(termcolor::Color::Red));
+    let mut stream = termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto);
     
+    stream.set_color(&slim_red)?;
+    stream.write_all(b" ----=== ")?;
+    stream.set_color(&bold_red)?;
+    stream.write_all(b"Parsing Error")?;
+    stream.set_color(&slim_red)?;
+    stream.write_all(b" ===----")?;
+    stream.reset()?;
+    writeln!(&mut stream, "")?;
+    
+    match error {
+        frontend::ParserError::UnknownOptionValue(value) => {
+            let (line, col) = view.lineinfo(value.start);
+            writeln!(&mut stream, "In line {} column {}: Unknown option value", line, col)?;
+            print_line_context(&mut stream, view, line, col, value.len())?;
+        },
+        frontend::ParserError::UnknownOptionName(name) => {
+            let (line, col) = view.lineinfo(name.start);
+            writeln!(&mut stream, "In line {} column {}: Unknown option name", line, col)?;
+            print_line_context(&mut stream, view, line, col, name.len())?;
+        },
+        frontend::ParserError::DuplicateContainerName(name) => {
+            let (line, col) = view.lineinfo(name.start);
+            writeln!(&mut stream, "In line {} column {}: Name '{}' already exists", line, col, view.range(&name))?;
+            print_line_context(&mut stream, view, line, col, name.len())?;
+        },
+        frontend::ParserError::EOF(message) => {
+            writeln!(&mut stream, "Hit an unexpected EOF: {}", message)?;
+        },
+        frontend::ParserError::UnexpectedToken(pos, message) => {
+            if let Some(pos) = pos {
+                let (line, col) = view.lineinfo(*pos);
+                writeln!(&mut stream, "In line {} column {}: {}", line, col, message)?;
+                print_line_context(&mut stream, view, line, col, 1)?;
+            } else {
+                writeln!(&mut stream, "Invalid token sequence by lexer: {}", message)?;
+                writeln!(&mut stream, "Unable to provide more info")?;
+            }
+        },
+    }
+    
+    writeln!(&mut stream, "")?;
     Ok(())
 }
 
@@ -141,8 +200,8 @@ fn main() {
     let tokens = match lexer.lex() {
         Ok(tokens) => tokens,
         Err(error) => {
-            if let Err(_) = print_lexing_error(&view, error) {
-                println!("An error occured but I couldn't produce any error message");
+            if let Err(_) = print_lexing_error(&view, &error) {
+                println!("{:?}", error);
             }
             std::process::exit(1);
         },
@@ -151,15 +210,16 @@ fn main() {
     for token in &tokens {
         println!("{:?}", token);
     }
-    /*
-    let mut parser = frontend::Parser::new(&buf, &tokens);
     
-    let grammar = match parser.parse() {
+    let mut parser = frontend::Parser::new(&view, &tokens);
+    
+    let _grammar = match parser.parse() {
         Ok(grammar) => grammar,
         Err(error) => {
-            parser.describe_error(error);
+            if let Err(_) = print_parsing_error(&view, &error) {
+                println!("{:?}", error);
+            }
             std::process::exit(1);
         },
     };
-    */
 }

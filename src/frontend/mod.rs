@@ -1,12 +1,9 @@
 mod lexer;
 mod keywords;
-//mod parser;
-
-#[allow(dead_code)]
-mod grammar;
+mod parser;
 
 mod source_view;
 
 pub use lexer::{Lexer, LexerError};
-//pub use parser::Parser;
-pub use source_view::SourceView;
+pub use parser::{Parser, ParserError};
+pub use source_view::{SourceView, SourceRange};

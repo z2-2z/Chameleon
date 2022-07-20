@@ -86,12 +86,10 @@ impl SourceView {
         &self.content[start_idx..end_idx]
     }
     
-    /*
     /// Convenience function that returns a slice from a SourceRange
     pub fn range(&self, range: &SourceRange) -> &str {
         self.slice(range.start, range.len())
     }
-    */
     
     /// Return line number and column for the grapheme at index `pos`
     pub fn lineinfo(&self, pos: usize) -> (usize, usize) {

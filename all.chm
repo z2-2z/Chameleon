@@ -1,8 +1,7 @@
-option asdf=asdf;
+option scheduling = round-robin;
 
 struct asdf{
-    l:asdf="";
-    l:asdf=1,'a';
-    l:oneof {};
-    l:asdf;
+    optional l:u8;
 }
+
+struct asdf {}

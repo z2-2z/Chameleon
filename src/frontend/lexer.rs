@@ -90,6 +90,105 @@ pub enum Token {
     BlockClose,
 }
 
+/// Same purpose as Tokens but for faster matching
+#[derive(PartialEq)]
+pub enum TokenId {
+    ContainerOpen,
+    ContainerClose,
+    OptionDef,
+    VariableStart,
+    VariableEnd,
+    VariableOptional,
+    VariableRepeatStart,
+    VariableRepeatEnd,
+    NumbersetStart,
+    NumbersetEnd,
+    IntegerRange,
+    Integer,
+    Character,
+    VariableType,
+    String,
+    VariableValueStart,
+    VariableValueEnd,
+    BlockOpen,
+    BlockClose,
+}
+impl TokenId {
+    pub fn description(&self) -> &str {
+        match self {
+            TokenId::ContainerOpen => "a new container",
+            TokenId::ContainerClose => "the end of the container",
+            TokenId::OptionDef => "an option definition",
+            TokenId::VariableStart => "the start of a variable",
+            TokenId::VariableEnd => "the end of the variable definition",
+            TokenId::VariableOptional => "the optional flag for a variable",
+            TokenId::VariableRepeatStart => "the repeats flag for a variable",
+            TokenId::VariableRepeatEnd => "the end of the repeats option",
+            TokenId::NumbersetStart => "the start of a numberset",
+            TokenId::NumbersetEnd => "the end of the numberset",
+            TokenId::IntegerRange => "a number range",
+            TokenId::Integer => "a number",
+            TokenId::Character => "a character",
+            TokenId::VariableType => "the type of a variable",
+            TokenId::String => "a string",
+            TokenId::VariableValueStart => "a value of the variable",
+            TokenId::VariableValueEnd => "the end of the value",
+            TokenId::BlockOpen => "the opening of a block",
+            TokenId::BlockClose => "the closure of the block",
+        }
+    }
+}
+
+impl Token {
+    pub fn id(&self) -> TokenId {
+        match self {
+            Token::ContainerOpen(_, _) => TokenId::ContainerOpen,
+            Token::ContainerClose => TokenId::ContainerClose,
+            Token::OptionDef(_,_,_) => TokenId::OptionDef,
+            Token::VariableStart(_) => TokenId::VariableStart,
+            Token::VariableEnd => TokenId::VariableEnd,
+            Token::VariableOptional(_) => TokenId::VariableOptional,
+            Token::VariableRepeatStart(_) => TokenId::VariableRepeatStart,
+            Token::VariableRepeatEnd => TokenId::VariableRepeatEnd,
+            Token::NumbersetStart(_) => TokenId::NumbersetStart,
+            Token::NumbersetEnd => TokenId::NumbersetEnd,
+            Token::IntegerRange(_,_) => TokenId::IntegerRange,
+            Token::Integer(_) => TokenId::Integer,
+            Token::Character(_) => TokenId::Character,
+            Token::VariableType(_) => TokenId::VariableType,
+            Token::String(_) => TokenId::String,
+            Token::VariableValueStart(_) => TokenId::VariableValueStart,
+            Token::VariableValueEnd => TokenId::VariableValueEnd,
+            Token::BlockOpen(_) => TokenId::BlockOpen,
+            Token::BlockClose => TokenId::BlockClose,
+        }
+    }
+    
+    pub fn pos(&self) -> Option<usize> {
+        match self {
+            Token::ContainerOpen(pos, _) => Some(*pos),
+            Token::ContainerClose => None,
+            Token::OptionDef(pos,_,_) => Some(*pos),
+            Token::VariableStart(pos) => Some(*pos),
+            Token::VariableEnd => None,
+            Token::VariableOptional(pos) => Some(*pos),
+            Token::VariableRepeatStart(pos) => Some(*pos),
+            Token::VariableRepeatEnd => None,
+            Token::NumbersetStart(pos) => Some(*pos),
+            Token::NumbersetEnd => None,
+            Token::IntegerRange(range,_) => Some(range.start),
+            Token::Integer(range) => Some(range.start),
+            Token::Character(range) => Some(range.start),
+            Token::VariableType(range) => Some(range.start),
+            Token::String(range) => Some(range.start),
+            Token::VariableValueStart(pos) => Some(*pos),
+            Token::VariableValueEnd => None,
+            Token::BlockOpen(pos) => Some(*pos),
+            Token::BlockClose => None,
+        }
+    }
+}
+
 /// Helper struct that provides some higher-level access
 /// functions to the SourceView
 struct Scanner<'a> {
