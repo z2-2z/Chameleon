@@ -7,6 +7,6 @@ mod grammar;
 
 mod source_view;
 
-pub use lexer::Lexer;
+pub use lexer::{Lexer, LexerError};
 //pub use parser::Parser;
 pub use source_view::SourceView;

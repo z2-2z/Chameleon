@@ -1,17 +1,37 @@
 use crate::frontend::keywords;
 use crate::frontend::source_view::{SourceView, SourceRange, NewRange};
 
-//TODO: specific variant for each error case
+/// All the errors that can occur during lexing
 #[derive(Debug)]
 pub enum LexerError {
-    UnexpectedInput(String),
-    UnexpectedEOF(String),
+    /// We unexpectedly hit an end of input
+    EOF(String),
+    
+    /// We expected a keyword but found something different
+    ExpectedKeyword(usize, String),
+    
+    /// We expected a character but found something different
+    ExpectedChar(usize, String),
+    
+    /// We expected whitespaces but none were supplied
+    MissingWhitespace(usize),
+    
+    /// We expected a variable identifier but found something different
+    ExpectedIdentifier(usize),
+    
+    /// We encountered an invalid character literal
+    InvalidCharLiteral(usize),
+    
+    /// We encountered an invalid number literal
+    InvalidNumber(usize),
 }
+
+//TODO: documentation
 
 //TODO: cursor position
 #[derive(PartialEq, Debug)]
 pub enum Token {
-    /// Argument: Offset and size of identifier
+    /// Argument: container name
     ContainerOpen(SourceRange),
     ContainerClose,
     /// Arguments: range of identifier, range of value
@@ -85,9 +105,17 @@ impl<'a> Scanner<'a> {
             self.forward(buf.len());
             Ok(())
         } else {
-            Err(LexerError::UnexpectedInput(
-                format!("Expected '{}'", buf)
-            ))
+            if buf.len() > 1 {
+                Err(LexerError::ExpectedKeyword(
+                    self.cursor,
+                    buf.to_string(),
+                ))
+            } else {
+                Err(LexerError::ExpectedChar(
+                    self.cursor,
+                    buf.to_string(),
+                ))
+            }
         }
     }
     
@@ -173,14 +201,12 @@ impl<'a> Lexer<'a> {
             }
             // then it must be whitespace
             else if self.scanner.skip(&mut is_whitespace) == 0 {
-                return Err(LexerError::UnexpectedInput(
-                    format!("Expected '{}' or '{}' or whitespace or comment", keywords::CONTAINER, keywords::OPTION)
-                ));
+                return Err(LexerError::MissingWhitespace(self.scanner.cursor));
             }
         }
         
         if tokens.is_empty() {
-            Err(LexerError::UnexpectedEOF(
+            Err(LexerError::EOF(
                 format!("Expected '{}' or '{}'", keywords::CONTAINER, keywords::OPTION)
             ))
         } else {
@@ -207,8 +233,8 @@ impl<'a> Lexer<'a> {
             }
         }
         
-        Err(LexerError::UnexpectedEOF(
-            format!("Expected end of comment '{}'", keywords::COMMENT_CLOSE)
+        Err(LexerError::EOF(
+            "Expected end of comment".to_string()
         ))
     }
     
@@ -224,8 +250,8 @@ impl<'a> Lexer<'a> {
         
         // At least one whitespace required after keyword
         if self.scanner.skip(&mut is_whitespace) == 0 {
-            return Err(LexerError::UnexpectedInput(
-                format!("Expected whitespace after '{}'", keywords::OPTION)
+            return Err(LexerError::MissingWhitespace(
+                self.scanner.cursor
             ));
         }
         
@@ -233,8 +259,8 @@ impl<'a> Lexer<'a> {
         identifier_start = self.scanner.cursor;
         identifier_end = match self.scanner.skip(&mut is_identifier) {
             0 => {
-                return Err(LexerError::UnexpectedInput(
-                    format!("Expected an identifier after '{}'", keywords::OPTION)
+                return Err(LexerError::ExpectedIdentifier(
+                    self.scanner.cursor
                 ));
             },
             len @ _ => identifier_start + len,
@@ -253,8 +279,8 @@ impl<'a> Lexer<'a> {
         value_start = self.scanner.cursor;
         value_end = match self.scanner.skip(&mut is_option_value) {
             0 => {
-                return Err(LexerError::UnexpectedInput(
-                    format!("Expected value after '{}'", keywords::ASSIGNMENT)
+                return Err(LexerError::ExpectedIdentifier(
+                    self.scanner.cursor
                 ));
             },
             len @ _ => value_start + len,
@@ -288,8 +314,8 @@ impl<'a> Lexer<'a> {
         
         // after the keyword whitespaces may follow
         if self.scanner.skip(&mut is_whitespace) < 1 {
-            return Err(LexerError::UnexpectedInput(
-                format!("Expected whitespace after '{}'", keywords::CONTAINER)
+            return Err(LexerError::MissingWhitespace(
+                self.scanner.cursor
             ));
         }
         
@@ -297,8 +323,8 @@ impl<'a> Lexer<'a> {
         name_start = self.scanner.cursor;
         name_end = match self.scanner.skip(&mut is_identifier) {
             0 => {
-                return Err(LexerError::UnexpectedInput(
-                    format!("Expected name after '{}'", keywords::CONTAINER)
+                return Err(LexerError::ExpectedIdentifier(
+                    self.scanner.cursor
                 ));
             },
             len @ _ => name_start + len,
@@ -359,8 +385,8 @@ impl<'a> Lexer<'a> {
             }
         }
         
-        Err(LexerError::UnexpectedEOF(
-            "Variable listing was not closed".to_string()
+        Err(LexerError::EOF(
+            "Block was not closed".to_string()
         ))
     }
     
@@ -376,8 +402,8 @@ impl<'a> Lexer<'a> {
                 
                 // white space must follow the keyword
                 if self.scanner.skip(&mut is_whitespace) == 0 {
-                    return Err(LexerError::UnexpectedInput(
-                        format!("Expected whitespace after '{}'", keywords::VAROPT_REPEATS)
+                    return Err(LexerError::MissingWhitespace(
+                        self.scanner.cursor
                     ));
                 }
             } 
@@ -387,8 +413,8 @@ impl<'a> Lexer<'a> {
                 
                 // white space must follow the keyword
                 if self.scanner.skip(&mut is_whitespace) == 0 {
-                    return Err(LexerError::UnexpectedInput(
-                        format!("Expected whitespace after '{}'", keywords::VAROPT_REPEATS)
+                    return Err(LexerError::MissingWhitespace(
+                        self.scanner.cursor
                     ));
                 }
                 
@@ -400,8 +426,8 @@ impl<'a> Lexer<'a> {
                 
                 // white space must follow after numberset
                 if self.scanner.skip(&mut is_whitespace) == 0 {
-                    return Err(LexerError::UnexpectedInput(
-                        "Expected whitespace after numberset".to_string()
+                    return Err(LexerError::MissingWhitespace(
+                        self.scanner.cursor
                     ));
                 }
             }
@@ -414,8 +440,8 @@ impl<'a> Lexer<'a> {
         // after variable options comes the variable name, but we ignore
         // the concrete value of the name. It is just a help for the developer
         if self.scanner.skip(&mut is_identifier) == 0 {
-            return Err(LexerError::UnexpectedInput(
-                "Expected variable name".to_string()
+            return Err(LexerError::ExpectedIdentifier(
+                self.scanner.cursor
             ));
         }
         
@@ -432,8 +458,8 @@ impl<'a> Lexer<'a> {
         let type_start = self.scanner.cursor;
         let type_end = match self.scanner.skip(&mut is_identifier) {
             0 => {
-                return Err(LexerError::UnexpectedInput(
-                    format!("Expected type name after '{}'", keywords::VAR_TYPE_SEP)
+                return Err(LexerError::ExpectedIdentifier(
+                    self.scanner.cursor
                 ));
             },
             len @ _ => type_start + len,
@@ -506,8 +532,8 @@ impl<'a> Lexer<'a> {
                     1 => char_start + 1,
                     2 => char_start + 2,
                     _ => {
-                        return Err(LexerError::UnexpectedInput(
-                            format!("Expected char constant after '")
+                        return Err(LexerError::InvalidCharLiteral(
+                            char_start
                         ));
                     },
                 };
@@ -521,8 +547,8 @@ impl<'a> Lexer<'a> {
                 let number_start = self.scanner.cursor;
                 let number_end = match self.scanner.skip(&mut is_integer) {
                     0 => {
-                        return Err(LexerError::UnexpectedInput(
-                            "Expected numberset".to_string()
+                        return Err(LexerError::InvalidNumber(
+                            number_start
                         ));
                     },
                     len @ _ => number_start + len,
@@ -535,8 +561,8 @@ impl<'a> Lexer<'a> {
                     let limit_start = self.scanner.cursor;
                     let limit_end = match self.scanner.skip(&mut is_integer) {
                         0 => {
-                            return Err(LexerError::UnexpectedInput(
-                                format!("Expected number after '{}'", keywords::RANGE_OP)
+                            return Err(LexerError::InvalidNumber(
+                                limit_start
                             ));
                         },
                         len @ _ => limit_start + len,

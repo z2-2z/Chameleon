@@ -1,11 +1,3 @@
 /* a valid chm file */
 
-option endianness = little;
-option scheduling = round-robin;
-
-struct Root {
-    option endianness = big;
-    option scheduling = random;
-    
-    minimal: u16;
-}
+option 

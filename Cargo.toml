@@ -10,3 +10,4 @@ debug = true
 
 [dependencies]
 unicode-segmentation = "1.9.0"
+termcolor = "1.1"

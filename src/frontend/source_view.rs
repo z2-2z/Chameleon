@@ -16,6 +16,19 @@ impl<Idx> NewRange<Idx> for std::ops::Range<Idx> {
     }
 }
 
+
+#[inline]
+fn is_linebreak(s: &str) -> bool {
+    #[cfg(target_os = "windows")]
+    return s == "\r\n";
+    
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    return s == "\r";
+    
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))]
+    return s == "\n";
+}
+
 pub struct SourceView {
     content: String,
     length: usize,
@@ -74,7 +87,83 @@ impl SourceView {
     }
     */
     
-    //TODO: lineinfo
+    pub fn lineinfo(&self, pos: usize) -> (usize, usize) {
+        let mut lineno = 1;
+        let mut col = 1;
+        
+        for grapheme in UnicodeSegmentation::graphemes(self.content.as_str(), true).take(pos + 1) {
+            if is_linebreak(grapheme) {
+                lineno += 1;
+                col = 0;
+            }
+            
+            col += 1;
+        }
+        
+        if col > 1 {
+            col -= 1;
+        }
+        
+        (lineno, col)
+    }
+    
+    pub fn get_line(&self, req_line: usize) -> Option<&str> {
+        let mut line_start = 0;
+        let mut line_end = 0;
+        let mut lineno = 1;
+        
+        if req_line == 0 {
+            return None;
+        }
+        
+        let mut graphemes = UnicodeSegmentation::grapheme_indices(self.content.as_str(), true);
+        
+        // Find start of line
+        if lineno < req_line {
+            while let Some((_, grapheme)) = graphemes.next() {
+                if is_linebreak(grapheme) {
+                    lineno += 1;
+                }
+                
+                if lineno >= req_line {
+                    break;
+                }
+            }
+            
+            match graphemes.next() {
+                Some((offset, s)) => {
+                    line_start = offset;
+                    
+                    // If the requested line is empty, return an empty string
+                    if is_linebreak(s) {
+                        return Some("");
+                    }
+                },
+                None => {
+                    return Some("");
+                },
+            }
+        }
+        
+        // Find end of line
+        while let Some((offset, grapheme)) = graphemes.next() {
+            if is_linebreak(grapheme) {
+                line_end = offset;
+                break;
+            }
+        }
+        
+        if line_end == 0 && graphemes.next().is_none() {
+            line_end = self.content.len();
+        }
+        
+        // Return line without trailing linebreak
+        if line_start <= line_end {
+            Some(&self.content[line_start .. line_end])
+        } else {
+            Some("")
+        }
+    }
 }
 
 #[cfg(test)]
@@ -113,5 +202,43 @@ mod tests {
         
         /* request exact size */
         assert_eq!(view.slice(0, 4), "a̐éö̲\r\n");
+    }
+    
+    #[test]
+    fn test_lineinfo() {
+        /* out of bounds */
+        let view = SourceView::new("");
+        assert_eq!(view.lineinfo(0), (1, 1));
+        
+        let view = SourceView::new("\n");
+        assert_eq!(view.lineinfo(1), (2, 1));
+        
+        /* mid byte */
+        let view = SourceView::new("\n\n");
+        assert_eq!(view.lineinfo(0), (2, 1));
+        assert_eq!(view.lineinfo(1), (3, 1));
+    
+        let view = SourceView::new("\nasdf\n");
+        assert_eq!(view.lineinfo(2), (2, 2));
+        assert_eq!(view.lineinfo(5), (3, 1));
+        
+        /* start byte */
+        let view = SourceView::new("asdf");
+        assert_eq!(view.lineinfo(0), (1, 1));
+    }
+    
+    #[test]
+    fn test_getline() {
+        let view = SourceView::new("");
+        assert_eq!(view.get_line(1), Some(""));
+        assert_eq!(view.get_line(2), Some(""));
+        
+        let view = SourceView::new("asdf\n");
+        assert_eq!(view.get_line(1), Some("asdf"));
+        assert_eq!(view.get_line(2), Some(""));
+        
+        let view = SourceView::new("asdf\n\nasdf");
+        assert_eq!(view.get_line(2), Some(""));
+        assert_eq!(view.get_line(3), Some("asdf"));
     }
 }
