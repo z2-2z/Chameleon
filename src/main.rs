@@ -91,7 +91,31 @@ fn print_lexing_error(view: &frontend::SourceView, error: frontend::LexerError) 
             writeln!(&mut stream, "In line {} column {}: Expected an identifier", line, col)?;
             print_line_context(&mut stream, view, line, col, 1)?;
         },
-        _ => panic!("{:?}", error),
+        frontend::LexerError::MissingWhitespace(pos) => {
+            let (line, col) = view.lineinfo(pos);
+            writeln!(&mut stream, "In line {} column {}: A whitespace is missing", line, col)?;
+            print_line_context(&mut stream, view, line, col, 1)?;
+        },
+        frontend::LexerError::ExpectedChar(pos, c) => {
+            let (line, col) = view.lineinfo(pos);
+            writeln!(&mut stream, "In line {} column {}: Expected the character '{}'", line, col, c)?;
+            print_line_context(&mut stream, view, line, col, 1)?;
+        },
+        frontend::LexerError::ExpectedKeyword(pos, keyword) =>  {
+            let (line, col) = view.lineinfo(pos);
+            writeln!(&mut stream, "In line {} column {}: Expected the keyword '{}'", line, col, keyword)?;
+            print_line_context(&mut stream, view, line, col, 1)?;
+        },
+        frontend::LexerError::InvalidNumber(pos) => {
+            let (line, col) = view.lineinfo(pos);
+            writeln!(&mut stream, "In line {} column {}: Invalid number", line, col)?;
+            print_line_context(&mut stream, view, line, col, 1)?;
+        },
+        frontend::LexerError::InvalidCharLiteral(pos) => {
+            let (line, col) = view.lineinfo(pos);
+            writeln!(&mut stream, "In line {} column {}: Invalid character constant", line, col)?;
+            print_line_context(&mut stream, view, line, col, 1)?;
+        },
     }
     
     writeln!(&mut stream, "")?;

@@ -89,18 +89,23 @@ impl SourceView {
     
     pub fn lineinfo(&self, pos: usize) -> (usize, usize) {
         let mut lineno = 1;
+        let mut last_col = 1;
         let mut col = 1;
         
         for grapheme in UnicodeSegmentation::graphemes(self.content.as_str(), true).take(pos + 1) {
             if is_linebreak(grapheme) {
                 lineno += 1;
+                last_col = col;
                 col = 0;
             }
             
             col += 1;
         }
         
-        if col > 1 {
+        if col == 1 && lineno > 1 {
+            col = last_col;
+            lineno -= 1;
+        } else if col > 1 {
             col -= 1;
         }
         
@@ -211,16 +216,16 @@ mod tests {
         assert_eq!(view.lineinfo(0), (1, 1));
         
         let view = SourceView::new("\n");
-        assert_eq!(view.lineinfo(1), (2, 1));
+        assert_eq!(view.lineinfo(1), (1, 1));
         
         /* mid byte */
         let view = SourceView::new("\n\n");
-        assert_eq!(view.lineinfo(0), (2, 1));
-        assert_eq!(view.lineinfo(1), (3, 1));
+        assert_eq!(view.lineinfo(0), (1, 1));
+        assert_eq!(view.lineinfo(1), (2, 1));
     
         let view = SourceView::new("\nasdf\n");
         assert_eq!(view.lineinfo(2), (2, 2));
-        assert_eq!(view.lineinfo(5), (3, 1));
+        assert_eq!(view.lineinfo(5), (2, 5));
         
         /* start byte */
         let view = SourceView::new("asdf");

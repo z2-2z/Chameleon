@@ -125,6 +125,11 @@ impl<'a> Scanner<'a> {
 }
 
 #[inline]
+fn is_whitespace_nonl(s: &str) -> bool {
+    s == " " || s == "\t"
+}
+
+#[inline]
 fn is_whitespace(s: &str) -> bool {
     s == " " || s == "\r" || s == "\n" || s == "\r\n" || s == "\t"
 }
@@ -201,7 +206,10 @@ impl<'a> Lexer<'a> {
             }
             // then it must be whitespace
             else if self.scanner.skip(&mut is_whitespace) == 0 {
-                return Err(LexerError::MissingWhitespace(self.scanner.cursor));
+                return Err(LexerError::ExpectedKeyword(
+                    self.scanner.cursor,
+                    format!("{} OR {}", keywords::OPTION, keywords::CONTAINER),
+                ));
             }
         }
         
@@ -249,7 +257,7 @@ impl<'a> Lexer<'a> {
         self.scanner.expect(keywords::OPTION)?;
         
         // At least one whitespace required after keyword
-        if self.scanner.skip(&mut is_whitespace) == 0 {
+        if self.scanner.skip(&mut is_whitespace_nonl) == 0 {
             return Err(LexerError::MissingWhitespace(
                 self.scanner.cursor
             ));
@@ -267,13 +275,13 @@ impl<'a> Lexer<'a> {
         };
         
         // After the identifier whitespaces may follow
-        self.scanner.skip(&mut is_whitespace);
+        self.scanner.skip(&mut is_whitespace_nonl);
         
         // ... until we hit an equals sign
         self.scanner.expect(keywords::ASSIGNMENT)?;
         
         // after an equals sign whitespaces may follow again
-        self.scanner.skip(&mut is_whitespace);
+        self.scanner.skip(&mut is_whitespace_nonl);
         
         // ... until we hit the value of an option
         value_start = self.scanner.cursor;
@@ -287,7 +295,7 @@ impl<'a> Lexer<'a> {
         };
         
         // after the value whitespaces may follow
-        self.scanner.skip(&mut is_whitespace);
+        self.scanner.skip(&mut is_whitespace_nonl);
         
         // and an option definition ends with ';'
         self.scanner.expect(keywords::TERMINATE_STATEMENT)?;
@@ -313,7 +321,7 @@ impl<'a> Lexer<'a> {
         self.scanner.expect(keywords::CONTAINER)?;
         
         // after the keyword whitespaces may follow
-        if self.scanner.skip(&mut is_whitespace) < 1 {
+        if self.scanner.skip(&mut is_whitespace_nonl) < 1 {
             return Err(LexerError::MissingWhitespace(
                 self.scanner.cursor
             ));
@@ -401,7 +409,7 @@ impl<'a> Lexer<'a> {
                 self.scanner.forward(keywords::VAROPT_OPTIONAL.len());
                 
                 // white space must follow the keyword
-                if self.scanner.skip(&mut is_whitespace) == 0 {
+                if self.scanner.skip(&mut is_whitespace_nonl) == 0 {
                     return Err(LexerError::MissingWhitespace(
                         self.scanner.cursor
                     ));
@@ -412,7 +420,7 @@ impl<'a> Lexer<'a> {
                 self.scanner.forward(keywords::VAROPT_REPEATS.len());
                 
                 // white space must follow the keyword
-                if self.scanner.skip(&mut is_whitespace) == 0 {
+                if self.scanner.skip(&mut is_whitespace_nonl) == 0 {
                     return Err(LexerError::MissingWhitespace(
                         self.scanner.cursor
                     ));
@@ -425,7 +433,7 @@ impl<'a> Lexer<'a> {
                 tokens.push(Token::VariableRepeatEnd);
                 
                 // white space must follow after numberset
-                if self.scanner.skip(&mut is_whitespace) == 0 {
+                if self.scanner.skip(&mut is_whitespace_nonl) == 0 {
                     return Err(LexerError::MissingWhitespace(
                         self.scanner.cursor
                     ));
@@ -446,13 +454,13 @@ impl<'a> Lexer<'a> {
         }
         
         // white space may follow after name
-        self.scanner.skip(&mut is_whitespace);
+        self.scanner.skip(&mut is_whitespace_nonl);
         
         // A type separator is expected
         self.scanner.expect(keywords::VAR_TYPE_SEP)?;
         
         // Optionally whitespaces may follow the type separator
-        self.scanner.skip(&mut is_whitespace);
+        self.scanner.skip(&mut is_whitespace_nonl);
         
         // Then a typename must follow
         let type_start = self.scanner.cursor;
@@ -468,7 +476,7 @@ impl<'a> Lexer<'a> {
         tokens.push(Token::VariableType(SourceRange::new(type_start, type_end)));
         
         // Optionally whitespaces may follow the type
-        self.scanner.skip(&mut is_whitespace);
+        self.scanner.skip(&mut is_whitespace_nonl);
         
         // After the type we may have an assignment with '='
         if self.scanner.peek(keywords::ASSIGNMENT) {
@@ -476,7 +484,7 @@ impl<'a> Lexer<'a> {
             
             tokens.push(Token::VariableValueStart);
             
-            self.scanner.skip(&mut is_whitespace);
+            self.scanner.skip(&mut is_whitespace_nonl);
             
             // After an equals sign we either expect a string literal or a numberset
             if self.scanner.peek(keywords::STRING_DELIM) {
@@ -487,14 +495,14 @@ impl<'a> Lexer<'a> {
             
             tokens.push(Token::VariableValueEnd);
             
-            self.scanner.skip(&mut is_whitespace);
+            self.scanner.skip(&mut is_whitespace_nonl);
         }
         // or we may have a new block
         else if self.scanner.peek(keywords::BLOCK_OPEN) {
             self.parse_block(tokens)?;
             
             // after a block whitespaces may follow
-            self.scanner.skip(&mut is_whitespace);
+            //self.scanner.skip(&mut is_whitespace);
         }
         
         self.scanner.expect(keywords::TERMINATE_STATEMENT)?;

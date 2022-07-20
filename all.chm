@@ -1,3 +1,10 @@
 /* a valid chm file */
+option asdf=asdf;
 
-option 
+struct asdf {
+    option x = y;
+
+    asdf: asdf = 12,1..1;
+    /* comment here */
+    x: y;
+}
