@@ -14,6 +14,10 @@ use crate::{
     },
 };
 use std::ops::Range;
+use num_traits::{
+    Num,
+    cast::NumCast,
+};
 
 #[derive(Debug)]
 pub enum ParserError {
@@ -23,6 +27,11 @@ pub enum ParserError {
     EOF(String),
     UnexpectedToken(Option<usize>, String),
     InvalidKeyword(SourceRange, String),
+    InvalidNumber(usize, SourceRange),
+    InvalidRange(SourceRange),
+    CharacterNotAllowed(SourceRange),
+    InvalidCharacter(SourceRange),
+    InvalidNumberset(usize),
 }
 
 struct TokenScanner<'a> {
@@ -358,8 +367,15 @@ impl<'a> Parser<'a> {
         }
     }
     
-    fn parse_numberset<T>(&mut self, grammar: &mut Grammar, allow_chars: bool) -> Result<Vec<Range<T>>, ParserError> {
-        self.scanner.expect(TokenId::NumbersetStart)?;
+    fn parse_numberset<T>(&mut self, grammar: &mut Grammar, allow_chars: bool) -> Result<Vec<Range<T>>, ParserError>
+    where
+        T: Num + Copy + core::cmp::Ord + NumCast + std::fmt::Debug,
+    {
+        let numberset_start = if let Token::NumbersetStart(start) = self.scanner.expect(TokenId::NumbersetStart)? {
+            *start
+        } else {
+            unreachable!();
+        };
         
         let mut ranges = Vec::<Range<T>>::new();
         
@@ -369,7 +385,36 @@ impl<'a> Parser<'a> {
                     break;
                 },
                 Token::Integer(literal) => {
-                    todo!();
+                    let number = self.parse_single_integer(literal)?;
+                    ranges.push(Range::new(number, number));
+                },
+                Token::IntegerRange(lower, upper) => {
+                    let lower_number: T = self.parse_single_integer(lower)?;
+                    let upper_number: T = self.parse_single_integer(upper)?;
+                    
+                    // upper bound must be greater than lower bound
+                    if upper_number.cmp(&lower_number) != core::cmp::Ordering::Greater {
+                        return Err(ParserError::InvalidRange(
+                            SourceRange::new(lower.start, upper.end)
+                        ));
+                    }
+                    
+                    ranges.push(Range::new(lower_number, upper_number));
+                },
+                Token::Character(literal) => {
+                    if !allow_chars {
+                        return Err(ParserError::CharacterNotAllowed(
+                            SourceRange::new(literal.start - 1, literal.end + 1)
+                        ));
+                    }
+                    
+                    let c = self.parse_char_literal(literal)?;
+                    
+                    if let Some(number) = T::from(c) {
+                        ranges.push(Range::new(number, number));
+                    } else {
+                        return Err(ParserError::InvalidCharacter(literal.clone()));
+                    }
                 },
                 _ => unreachable!(),
             }
@@ -377,6 +422,110 @@ impl<'a> Parser<'a> {
             self.scanner.forward(1);
         }
         
+        if ranges.is_empty() {
+            return Err(ParserError::InvalidNumberset(
+                numberset_start
+            ));
+        }
+        
+        // Minimize ranges
+        ranges.sort_by(|a, b| (a.start, a.end).cmp(&(b.start, b.end)));
+        
+        let mut i = 0;
+        while i < ranges.len() - 1 {
+            if ranges[i] == ranges[i + 1] {
+                ranges.remove(i + 1);
+                i = i.wrapping_sub(1)
+            } else if ranges[i].end >= ranges[i + 1].start || ranges[i].end + T::from(1).unwrap() == ranges[i + 1].start {
+                // combine adjacent ranges
+                let a = ranges.remove(i);
+                let b = ranges.remove(i);
+                ranges.insert(i, Range::new(a.start, b.end));
+                i = i.wrapping_sub(1)
+            }
+            
+            i = i.wrapping_add(1);
+        }
+        
         Ok(ranges)
+    }
+    
+    fn parse_single_integer<T>(&mut self, literal: &SourceRange) -> Result<T, ParserError>
+    where
+        T: Num + Copy + core::cmp::Ord + NumCast,
+    {
+        let source = self.scanner.get_source(literal);
+        
+        // Is it a hexadecimal number ?
+        if source.len() > 2 && source.starts_with("0x") {
+            if let Ok(number) = T::from_str_radix(&source[2..], 16) {
+                Ok(number)
+            } else {
+                Err(ParserError::InvalidNumber(
+                    16,
+                    literal.clone(),
+                ))
+            }
+        } 
+        // Is it a octal number ?
+        else if source.len() > 2 && source.starts_with("0o") {
+            if let Ok(number) = T::from_str_radix(&source[2..], 8) {
+                Ok(number)
+            } else {
+                Err(ParserError::InvalidNumber(
+                    8,
+                    literal.clone(),
+                ))
+            }
+        }
+        // Is it a binary number ?
+        else if source.len() > 2 && source.starts_with("0b") {
+            if let Ok(number) = T::from_str_radix(&source[2..], 2) {
+                Ok(number)
+            } else {
+                Err(ParserError::InvalidNumber(
+                    2,
+                    literal.clone(),
+                ))
+            }
+        }
+        // Then it must be a decimal number
+        else {
+            if let Ok(number) = T::from_str_radix(source, 10) {
+                Ok(number)
+            } else {
+                Err(ParserError::InvalidNumber(
+                    10,
+                    literal.clone(),
+                ))
+            }
+        }
+    }
+    
+    //TODO: test
+    fn parse_char_literal(&mut self, literal: &SourceRange) -> Result<u8, ParserError> {
+        let source = self.scanner.get_source(literal);
+        
+        if source.len() == 2 {
+            if source.as_bytes()[0] == b'\\' {
+                match &source[1..] {
+                    "\\" => Ok(b'\\'),
+                    "r" => Ok(b'\r'),
+                    "'" => Ok(b'\''),
+                    "n" => Ok(b'\n'),
+                    "t" => Ok(b'\t'),
+                    "0" => Ok(0),
+                    "a" => Ok(7),
+                    "b" => Ok(8),
+                    "v" => Ok(11),
+                    "f" => Ok(12),
+                    _ => Err(ParserError::InvalidCharacter(literal.clone()))
+                }
+            } else {
+                Err(ParserError::InvalidCharacter(literal.clone()))
+            }
+        } else {
+            Ok(source.as_bytes()[0])
+        }
     }
 }

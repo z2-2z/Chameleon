@@ -192,6 +192,31 @@ fn print_parsing_error(view: &frontend::SourceView, error: &frontend::ParserErro
             writeln!(&mut stream, "In line {} column {}: {}", line, col, message)?;
             print_line_context(&mut stream, view, line, col, range.len())?;
         },
+        frontend::ParserError::InvalidNumber(base, num) => {
+            let (line, col) = view.lineinfo(num.start);
+            writeln!(&mut stream, "In line {} column {}: Invalid number of base {} given the type of the variable", line, col, base)?;
+            print_line_context(&mut stream, view, line, col, num.len())?;
+        },
+        frontend::ParserError::InvalidRange(range) => {
+            let (line, col) = view.lineinfo(range.start);
+            writeln!(&mut stream, "In line {} column {}: Invalid bounds in range", line, col)?;
+            print_line_context(&mut stream, view, line, col, range.len())?;
+        },
+        frontend::ParserError::CharacterNotAllowed(ch) => {
+            let (line, col) = view.lineinfo(ch.start);
+            writeln!(&mut stream, "In line {} column {}: Char literals are not allowed here", line, col)?;
+            print_line_context(&mut stream, view, line, col, ch.len())?;
+        },
+        frontend::ParserError::InvalidCharacter(ch) => {
+            let (line, col) = view.lineinfo(ch.start);
+            writeln!(&mut stream, "In line {} column {}: Invalid char literal", line, col)?;
+            print_line_context(&mut stream, view, line, col, ch.len())?;
+        },
+        frontend::ParserError::InvalidNumberset(pos) => {
+            let (line, col) = view.lineinfo(*pos);
+            writeln!(&mut stream, "In line {} column {}: Invalid numberset", line, col)?;
+            print_line_context(&mut stream, view, line, col, 1)?;
+        },
     }
     
     writeln!(&mut stream, "")?;

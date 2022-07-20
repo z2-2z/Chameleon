@@ -309,12 +309,12 @@ fn is_option_value(s: &str) -> bool {
     }
 }
 
-/// charset for signed integers + prefix characters 0x 0o 0b
+/// charset for signed integers + prefix characters 0x 0o 0b + hex characters
 #[inline]
 fn is_integer(s: &str) -> bool {
     if s.len() == 1 {
         let c = s.as_bytes()[0];
-        (c >= 0x30 && c < 0x3A) || c == b'-' || c == b'x' || c == b'o' || c == b'b'
+        (c >= 0x30 && c < 0x3A) || c == b'-' || c == b'x' || c == b'o' || c == b'b' || (c >= b'A' && c <= b'F') || (c >= b'a' && c <= b'f')
     } else {
         false
     }
