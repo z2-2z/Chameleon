@@ -3,6 +3,7 @@ use unicode_segmentation::UnicodeSegmentation;
 /// Type alias that represents a slice of the SourceView
 pub type SourceRange = std::ops::Range<usize>;
 
+/// Trait that provides a new() method for Range
 pub trait NewRange<Idx> {
     fn new(start: Idx, end: Idx) -> Self;
 }
@@ -29,6 +30,11 @@ fn is_linebreak(s: &str) -> bool {
     return s == "\n";
 }
 
+/// Given a grammar that is specified in valid UTF-8, this struct
+/// offers some convenience functions to get slices of graphemes
+/// as &str from the underlying string.
+/// This enables us to implement parsers that operate on UTF-8 encoded
+/// chars instead of raw bytes.
 pub struct SourceView {
     content: String,
     length: usize,
@@ -87,6 +93,7 @@ impl SourceView {
     }
     */
     
+    /// Return line number and column for the grapheme at index `pos`
     pub fn lineinfo(&self, pos: usize) -> (usize, usize) {
         let mut lineno = 1;
         let mut last_col = 1;
@@ -112,6 +119,8 @@ impl SourceView {
         (lineno, col)
     }
     
+    /// Return the contents of a line (without line ending) or None
+    /// if the line number is invalid.
     pub fn get_line(&self, req_line: usize) -> Option<&str> {
         let mut line_start = 0;
         let mut line_end = 0;

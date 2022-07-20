@@ -1,11 +1,6 @@
 /* a valid chm file */
 option asdf=asdf;
 
-struct asdf {
-    option x = y;
-
-    asdf: asdf {
-        option x = y;
-        /* comment */
-    };    
+struct a̐éö̲{
+    röhrich: asdf;
 }

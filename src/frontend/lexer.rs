@@ -194,7 +194,7 @@ fn is_identifier(s: &str) -> bool {
         let c = s.as_bytes()[0];
         (c >= 0x30 && c < 0x3a) || (c >= 0x41 && c < 0x5B) || (c >= 0x61 && c < 0x7B) || c == b'_'
     } else {
-        false
+        true
     }
 }
 
