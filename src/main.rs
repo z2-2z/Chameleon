@@ -4,17 +4,22 @@ use std::io::Write;
 
 mod frontend;
 
-fn get_decimal_length(mut lineno: usize) -> usize {
+/// Given a number `n`, return how many decimal digits are
+/// needed to represent this number
+fn get_decimal_length(mut n: usize) -> usize {
     let mut len = 0;
     
-    while lineno > 0 {
-        lineno /= 10;
+    while n > 0 {
+        n /= 10;
         len += 1;
     }
     
     len
 }
 
+/// Given an error location denoted by `lineno` and `col` print a context of the
+/// file that may be helpful for debugging.
+/// The context includes 3 lines around the invalid line.
 fn print_line_context(stream: &mut termcolor::StandardStream, view: &frontend::SourceView, lineno: usize, col: usize, len: usize) -> Result<(), std::io::Error> {
     let line_length = std::cmp::max(
         get_decimal_length(lineno - 1),
@@ -43,7 +48,7 @@ fn print_line_context(stream: &mut termcolor::StandardStream, view: &frontend::S
     if let Some(line) = view.get_line(lineno) {
         writeln!(stream, " {:width$} | {}", lineno, line, width = line_length)?;
         
-        // Mark the columns affected
+        // Mark the affected columns
         write!(stream, " {0:width$} | {0:skip_cols$}", "",  width = line_length, skip_cols = col - 1)?;
         stream.set_color(&slim_red)?;
         writeln!(stream, "{0:^<input_len$}", "", input_len = len)?;
@@ -62,6 +67,7 @@ fn print_line_context(stream: &mut termcolor::StandardStream, view: &frontend::S
     Ok(())
 }
 
+/// Print a neat error message for the given lexer error
 fn print_lexing_error(view: &frontend::SourceView, error: frontend::LexerError) -> Result<(), std::io::Error> {
     let mut bold_red = termcolor::ColorSpec::new();
     bold_red.set_bg(None);

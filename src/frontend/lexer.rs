@@ -29,39 +29,70 @@ pub enum LexerError {
     InvalidNumber(usize),
 }
 
-//TODO: documentation
-
-//TODO: cursor position
+//TODO: position in source
+/// The tokens that get passed to the parser
 #[derive(PartialEq, Debug)]
 pub enum Token {
-    /// Argument: container name
+    /// A container was created with a given name
     ContainerOpen(SourceRange),
+    
+    /// The current container is being closed
     ContainerClose,
-    /// Arguments: range of identifier, range of value
+    
+    /// An option was set in a block
     OptionDef(SourceRange, SourceRange),
+    
+    /// A variable definition follows
     VariableStart,
+    
+    /// The variable definition finished
     VariableEnd,
+    
+    /// The variable is optional
     VariableOptional,
+    
+    /// The variable has a repeats option
     VariableRepeatStart,
+    
+    /// The variables repeats option has ended
     VariableRepeatEnd,
+    
+    /// A numberset follows
     NumbersetStart,
+    
+    /// No more numberset entries follow
     NumbersetEnd,
-    /// Arguments: lower limit, upper limit
+    
+    /// A range of integers was specified
     IntegerRange(SourceRange, SourceRange),
-    /// Argument: integer string
+    
+    /// A single integer was specified
     Integer(SourceRange),
-    /// Argument: literal contents
+    
+    /// A character constant was specified
     Character(SourceRange),
-    /// Argument: type name
+    
+    /// Sets the type of the currently active variable
     VariableType(SourceRange),
-    /// Argument: string literal contents
+    
+    /// A string literal was specified
     String(SourceRange),
+    
+    /// A variable has an assigned value
     VariableValueStart,
+    
+    /// The end of an assignment to a variable
     VariableValueEnd,
+    
+    /// A block was opened
     BlockOpen,
+    
+    /// The currently active block is being closed
     BlockClose,
 }
 
+/// Helper struct that provides some higher-level access
+/// functions to the SourceView
 struct Scanner<'a> {
     view: &'a SourceView,
     cursor: usize,
@@ -74,17 +105,21 @@ impl<'a> Scanner<'a> {
         }
     }
     
+    /// Check if the view at the current position contains the string `buf`
     fn peek(&self, buf: &str) -> bool {
         // we only compare against ASCII strings so buf.len() is fine
         self.view.slice(self.cursor, buf.len()) == buf
     }
     
+    /// Increment the cursor
     fn forward(&mut self, len: usize) {
         if self.cursor < self.view.len() {
             self.cursor += len;
         }
     }
     
+    /// Given a selector function that gets graphemes as inputs,
+    /// advance the cursor until the function returns `false`
     fn skip<F>(&mut self, func: &mut F) -> usize
     where
         F: FnMut(&str) -> bool,
@@ -103,6 +138,8 @@ impl<'a> Scanner<'a> {
         skipped
     }
     
+    /// Run a given function that gets a grapheme as input and outputs
+    /// a boolean on the grapheme at the current cursor position
     fn check<F>(&mut self, func: &mut F) -> bool
     where
         F: FnMut(&str) -> bool,
@@ -114,6 +151,7 @@ impl<'a> Scanner<'a> {
         }
     }
     
+    /// Assert that the source contains `buf` at the current cursor position
     fn expect(&mut self, buf: &str) -> Result<(), LexerError> {
         if self.peek(buf) {
             self.forward(buf.len());
@@ -133,6 +171,7 @@ impl<'a> Scanner<'a> {
         }
     }
     
+    /// Indicate whether there are any graphemes left to parse
     fn done(&self) -> bool {
         self.cursor >= self.view.len()
     }
@@ -145,7 +184,7 @@ fn is_whitespace_nonl(s: &str) -> bool {
 
 #[inline]
 fn is_whitespace(s: &str) -> bool {
-    s == " " || s == "\r" || s == "\n" || s == "\r\n" || s == "\t"
+    is_whitespace_nonl(s) || s == "\r" || s == "\n" || s == "\r\n"
 }
 
 /// An identifier is [0-9a-zA-Z_]+
@@ -192,6 +231,9 @@ fn is_char(s: &str) -> bool {
     }
 }
 
+/// Struct that implements the lexing logic.
+/// Converts a stream of graphemes into a stream
+/// of higher-level tokens.
 pub struct Lexer<'a> {
     scanner: Scanner<'a>,
 }
@@ -202,6 +244,7 @@ impl<'a> Lexer<'a> {
         }
     }
     
+    /// Main function of this struct: Does the lexing.
     pub fn lex(&mut self) -> Result<Vec<Token>, LexerError> {
         let mut tokens = Vec::<Token>::new();
         
