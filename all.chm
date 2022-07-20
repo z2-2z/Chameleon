@@ -2,7 +2,7 @@ option scheduling = round-robin;
 
 struct asdf{
     l:oneof {
-        repeats 1 num: u8;
+        repeats 1 num: i8 = 'X';
     };
 }
 

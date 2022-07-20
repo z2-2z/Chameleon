@@ -31,6 +31,7 @@ pub enum ParserError {
     CharacterNotAllowed(SourceRange),
     InvalidCharacter(SourceRange),
     InvalidNumberset(usize),
+    InvalidTypeName(SourceRange),
 }
 
 struct TokenScanner<'a> {
@@ -320,7 +321,68 @@ impl<'a> Parser<'a> {
         };
         
         let var_type = match self.scanner.current() {
-            Some(Token::VariableValueStart(_)) => todo!(),
+            Some(Token::VariableValueStart(_)) => {
+                self.scanner.forward(1);
+                
+                let ret = match self.scanner.current() {
+                    Some(Token::String(pos)) => {
+                        // check type name
+                        // parse string binary or not
+                        todo!();
+                    },
+                    Some(Token::NumbersetStart(_)) => {
+                        match self.scanner.get_source(&type_name) {
+                            keywords::TYPE_U8 => {
+                                let ranges = self.parse_numberset::<u8>(grammar, true)?;
+                                let id = grammar.add_numberset(NumbersetType::U8(ranges));
+                                VariableType::U8(IntegerValue::FromSet(id))
+                            },
+                            keywords::TYPE_I8 => {
+                                let ranges = self.parse_numberset::<i8>(grammar, true)?;
+                                let id = grammar.add_numberset(NumbersetType::I8(ranges));
+                                VariableType::I8(IntegerValue::FromSet(id))
+                            },
+                            keywords::TYPE_U16 => {
+                                let ranges = self.parse_numberset::<u16>(grammar, false)?;
+                                let id = grammar.add_numberset(NumbersetType::U16(ranges));
+                                VariableType::U16(IntegerValue::FromSet(id))
+                            },
+                            keywords::TYPE_I16 => {
+                                let ranges = self.parse_numberset::<i16>(grammar, false)?;
+                                let id = grammar.add_numberset(NumbersetType::I16(ranges));
+                                VariableType::I16(IntegerValue::FromSet(id))
+                            },
+                            keywords::TYPE_U32 => {
+                                let ranges = self.parse_numberset::<u32>(grammar, false)?;
+                                let id = grammar.add_numberset(NumbersetType::U32(ranges));
+                                VariableType::U32(IntegerValue::FromSet(id))
+                            },
+                            keywords::TYPE_I32 => {
+                                let ranges = self.parse_numberset::<i32>(grammar, false)?;
+                                let id = grammar.add_numberset(NumbersetType::I32(ranges));
+                                VariableType::I32(IntegerValue::FromSet(id))
+                            },
+                            keywords::TYPE_U64 => {
+                                let ranges = self.parse_numberset::<u64>(grammar, false)?;
+                                let id = grammar.add_numberset(NumbersetType::U64(ranges));
+                                VariableType::U64(IntegerValue::FromSet(id))
+                            },
+                            keywords::TYPE_I64 => {
+                                let ranges = self.parse_numberset::<i64>(grammar, false)?;
+                                let id = grammar.add_numberset(NumbersetType::I64(ranges));
+                                VariableType::I64(IntegerValue::FromSet(id))
+                            },
+                            _ => {
+                                return Err(ParserError::InvalidTypeName(type_name.clone()));
+                            },
+                        }
+                    },
+                    _ => unreachable!()
+                };
+                
+                self.scanner.expect(TokenId::VariableValueEnd)?;
+                ret
+            },
             Some(Token::BlockOpen(_)) => {
                 // Check that the type name is 'oneof'
                 if self.scanner.get_source(&type_name) != keywords::TYPE_ONEOF {

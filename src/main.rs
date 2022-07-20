@@ -217,6 +217,11 @@ fn print_parsing_error(view: &frontend::SourceView, error: &frontend::ParserErro
             writeln!(&mut stream, "In line {} column {}: Invalid numberset", line, col)?;
             print_line_context(&mut stream, view, line, col, 1)?;
         },
+        frontend::ParserError::InvalidTypeName(name) => {
+            let (line, col) = view.lineinfo(name.start);
+            writeln!(&mut stream, "In line {} column {}: Specified type and value don't match", line, col)?;
+            print_line_context(&mut stream, view, line, col, name.len())?;
+        },
     }
     
     writeln!(&mut stream, "")?;

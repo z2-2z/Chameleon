@@ -173,9 +173,13 @@ pub type Numberset<T> = Vec<Range<T>>;
 /// Lists the different types numbersets can have
 pub enum NumbersetType {
     U8(Numberset<u8>),
+    I8(Numberset<i8>),
     U16(Numberset<u16>),
+    I16(Numberset<i16>),
     U32(Numberset<u32>),
+    I32(Numberset<i32>),
     U64(Numberset<u64>),
+    I64(Numberset<i64>),
 }
 impl NumbersetType {
     fn id(&self) -> NumbersetId {
@@ -188,10 +192,22 @@ impl NumbersetType {
                     hasher.write_u8(range.end);
                 }
             },
+            NumbersetType::I8(set) => {
+                for range in set {
+                    hasher.write_i8(range.start);
+                    hasher.write_i8(range.end);
+                }
+            },
             NumbersetType::U16(set) => {
                 for range in set {
                     hasher.write_u16(range.start);
                     hasher.write_u16(range.end);
+                }
+            },
+            NumbersetType::I16(set) => {
+                for range in set {
+                    hasher.write_i16(range.start);
+                    hasher.write_i16(range.end);
                 }
             },
             NumbersetType::U32(set) => {
@@ -200,10 +216,22 @@ impl NumbersetType {
                     hasher.write_u32(range.end);
                 }
             },
+            NumbersetType::I32(set) => {
+                for range in set {
+                    hasher.write_i32(range.start);
+                    hasher.write_i32(range.end);
+                }
+            },
             NumbersetType::U64(set) => {
                 for range in set {
                     hasher.write_u64(range.start);
                     hasher.write_u64(range.end);
+                }
+            },
+            NumbersetType::I64(set) => {
+                for range in set {
+                    hasher.write_i64(range.start);
+                    hasher.write_i64(range.end);
                 }
             },
         }
