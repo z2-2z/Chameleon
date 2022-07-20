@@ -29,6 +29,8 @@ pub enum LexerError {
     InvalidNumber(usize),
 }
 
+//TODO: add variable name to tokens
+//TODO: make that everything has pos such that pos() always returns something
 /// The tokens that get passed to the parser
 #[derive(PartialEq, Debug)]
 pub enum Token {
@@ -557,16 +559,14 @@ impl<'a> Lexer<'a> {
         ))
     }
     
-    fn parse_variable_definition(&mut self, tokens: &mut Vec<Token>) -> Result<(), LexerError> {
-        let variable_start = self.scanner.cursor;
-        
-        tokens.push(Token::VariableStart(variable_start));
+    fn parse_variable_definition(&mut self, tokens: &mut Vec<Token>) -> Result<(), LexerError> {        
+        tokens.push(Token::VariableStart(self.scanner.cursor));
         
         // Variables may start with options
         while !self.scanner.done() {
             // variable optional ?
             if self.scanner.peek(keywords::VAROPT_OPTIONAL) {
-                tokens.push(Token::VariableOptional(variable_start));
+                tokens.push(Token::VariableOptional(self.scanner.cursor));
                 self.scanner.forward(keywords::VAROPT_OPTIONAL.len());
                 
                 // white space must follow the keyword
@@ -578,6 +578,7 @@ impl<'a> Lexer<'a> {
             } 
             // variable repeatable ?
             else if self.scanner.peek(keywords::VAROPT_REPEATS) {
+                let repeats_start = self.scanner.cursor;
                 self.scanner.forward(keywords::VAROPT_REPEATS.len());
                 
                 // white space must follow the keyword
@@ -587,7 +588,7 @@ impl<'a> Lexer<'a> {
                     ));
                 }
                 
-                tokens.push(Token::VariableRepeatStart(variable_start));
+                tokens.push(Token::VariableRepeatStart(repeats_start));
                 
                 self.parse_numberset(tokens)?;
                 

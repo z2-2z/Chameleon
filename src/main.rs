@@ -187,6 +187,11 @@ fn print_parsing_error(view: &frontend::SourceView, error: &frontend::ParserErro
                 writeln!(&mut stream, "Unable to provide more info")?;
             }
         },
+        frontend::ParserError::InvalidKeyword(range, message) => {
+            let (line, col) = view.lineinfo(range.start);
+            writeln!(&mut stream, "In line {} column {}: {}", line, col, message)?;
+            print_line_context(&mut stream, view, line, col, range.len())?;
+        },
     }
     
     writeln!(&mut stream, "")?;

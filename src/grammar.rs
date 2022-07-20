@@ -73,6 +73,15 @@ impl Default for VariableOptions {
         }
     }
 }
+impl VariableOptions {
+    pub fn set_optional(&mut self) {
+        self.optional = true;
+    }
+    
+    pub fn set_repeats(&mut self, numberset: NumbersetId) {
+        self.repeats = Some(numberset);
+    }
+}
 
 /// Possible values for an integer
 pub enum IntegerValue {
@@ -108,6 +117,14 @@ pub struct Variable {
     options: VariableOptions,
     typ: VariableType,
 }
+impl Variable {
+    pub fn new(options: VariableOptions, typ: VariableType) -> Self {
+        Self {
+            options,
+            typ
+        }
+    }
+}
 
 /// A container for variables
 pub struct Container {
@@ -132,6 +149,10 @@ impl Container {
     
     pub fn id(&self) -> ContainerId {
         self.id
+    }
+    
+    pub fn add_variable(&mut self, var: Variable) {
+        self.variables.push(var);
     }
 }
 impl HasOptions for Container {

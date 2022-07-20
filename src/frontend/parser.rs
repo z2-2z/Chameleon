@@ -4,13 +4,16 @@ use crate::{
         Container, Endianness,
         Scheduling, Variable,
         VariableType, IntegerValue,
+        VariableOptions, NumbersetType,
+        NumbersetId,
     },
     frontend::{
         lexer::{Token, TokenId},
-        source_view::{SourceRange, SourceView},
+        source_view::{SourceRange, SourceView, NewRange},
         keywords,
     },
 };
+use std::ops::Range;
 
 #[derive(Debug)]
 pub enum ParserError {
@@ -19,6 +22,7 @@ pub enum ParserError {
     DuplicateContainerName(SourceRange),
     EOF(String),
     UnexpectedToken(Option<usize>, String),
+    InvalidKeyword(SourceRange, String),
 }
 
 struct TokenScanner<'a> {
@@ -97,6 +101,7 @@ impl<'a> TokenScanner<'a> {
         }
     }
     
+    //TODO: rename to peek
     fn current(&self) -> Option<&'a Token> {
         if self.cursor < self.tokens.len() {
             Some(&self.tokens[self.cursor])
@@ -240,7 +245,7 @@ impl<'a> Parser<'a> {
                 
                 Token::VariableStart(_) => {
                     let variable = self.parse_variable_definition(grammar)?;
-                    todo!();
+                    container.add_variable(variable);
                 },
                 
                 _ => {
@@ -259,7 +264,45 @@ impl<'a> Parser<'a> {
     fn parse_variable_definition(&mut self, grammar: &mut Grammar) -> Result<Variable, ParserError> {
         self.scanner.expect(TokenId::VariableStart)?;
         
-        //TODO: options
+        // Parse variable options
+        let mut had_optional = false;
+        let mut had_repeats = false;
+        let mut var_opts = VariableOptions::default();
+        
+        while let Some(token) = self.scanner.current() {
+            match token {
+                Token::VariableOptional(pos) => {
+                    if had_optional {
+                        return Err(ParserError::InvalidKeyword(
+                            SourceRange::new(*pos, pos + keywords::VAROPT_OPTIONAL.len()),
+                            "Multiple occurences of variable options not allowed".to_string(),
+                        ));
+                    }
+                    
+                    var_opts.set_optional();
+                    had_optional = true;
+                },
+                Token::VariableRepeatStart(pos) => {
+                    if had_repeats {
+                        return Err(ParserError::InvalidKeyword(
+                            SourceRange::new(*pos, pos + 1),
+                            "Multiple occurences of variable options not allowed".to_string(),
+                        ));
+                    }
+                    
+                    self.scanner.forward(1);
+                    let ranges = self.parse_numberset::<u32>(grammar, false)?;
+                    todo!();
+                    //var_opts.set_repeats(id);
+                    had_repeats = true;
+                },
+                _ => {
+                    break;
+                },
+            }
+            
+            self.scanner.forward(1);
+        }
         
         let type_name = match self.scanner.expect(TokenId::VariableType)? {
             Token::VariableType(name) => {
@@ -270,22 +313,70 @@ impl<'a> Parser<'a> {
         
         let var_type = match self.scanner.current() {
             Some(Token::VariableValueStart(_)) => todo!(),
-            Some(Token::BlockOpen(_)) => todo!(),
+            Some(Token::BlockOpen(_)) => {
+                // Check that the type name is 'oneof'
+                if self.scanner.get_source(&type_name) != keywords::TYPE_ONEOF {
+                    return Err(ParserError::InvalidKeyword(
+                        type_name.clone(),
+                        format!("Expected '{}'", keywords::TYPE_ONEOF),
+                    ));
+                }
+                
+                // Create container
+                let id = grammar.reserve_container_id();
+                let mut container = Container::new(id, None);
+                self.parse_block(grammar, &mut container)?;
+                
+                // Create type
+                grammar.add_container(container);
+                VariableType::Oneof(id)
+            },
             Some(Token::VariableEnd) => self.parse_variable_value_any(type_name)?,
             _ => unreachable!(),
         };
         
-        //TODO: construct variable from type and options
-        todo!();
+        self.scanner.expect(TokenId::VariableEnd)?;
+        
+        Ok(Variable::new(var_opts, var_type))
     }
     
     fn parse_variable_value_any(&mut self, type_name: SourceRange) -> Result<VariableType, ParserError> {
-        self.scanner.expect(TokenId::VariableEnd)?;
-        
         match self.scanner.get_source(&type_name) {
             keywords::TYPE_U8 => Ok(VariableType::U8(IntegerValue::Any)),
             keywords::TYPE_I8 => Ok(VariableType::I8(IntegerValue::Any)),
+            keywords::TYPE_U16 => Ok(VariableType::U16(IntegerValue::Any)),
+            keywords::TYPE_I16 => Ok(VariableType::I16(IntegerValue::Any)),
+            keywords::TYPE_U32 => Ok(VariableType::U32(IntegerValue::Any)),
+            keywords::TYPE_I32 => Ok(VariableType::I32(IntegerValue::Any)),
+            keywords::TYPE_U64 => Ok(VariableType::U64(IntegerValue::Any)),
+            keywords::TYPE_I64 => Ok(VariableType::I64(IntegerValue::Any)),
+            keywords::TYPE_ONEOF => Err(ParserError::InvalidKeyword(
+                type_name.clone(),
+                format!("Keyword '{}' is not allowed as a type name", keywords::TYPE_ONEOF)
+            )),
             _ => Ok(VariableType::ResolveContainerRef(type_name)),
         }
+    }
+    
+    fn parse_numberset<T>(&mut self, grammar: &mut Grammar, allow_chars: bool) -> Result<Vec<Range<T>>, ParserError> {
+        self.scanner.expect(TokenId::NumbersetStart)?;
+        
+        let mut ranges = Vec::<Range<T>>::new();
+        
+        while let Some(token) = self.scanner.current() {
+            match token {
+                Token::NumbersetEnd => {
+                    break;
+                },
+                Token::Integer(literal) => {
+                    todo!();
+                },
+                _ => unreachable!(),
+            }
+            
+            self.scanner.forward(1);
+        }
+        
+        Ok(ranges)
     }
 }
