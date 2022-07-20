@@ -246,7 +246,7 @@ pub struct Grammar {
     containers: BTreeMap<ContainerId, Container>,
     container_cursor: ContainerId,
     numbersets: BTreeMap<NumbersetId, NumbersetType>,
-    strings: BTreeMap<StringId, SourceRange>,
+    strings: BTreeMap<StringId, Vec<u8>>,
     root: Option<ContainerId>,
 }
 impl Grammar {
@@ -284,10 +284,23 @@ impl Grammar {
     pub fn add_numberset(&mut self, set: NumbersetType) -> NumbersetId {
         let id = set.id();
         
-        if self.numbersets.get(&id).is_some() {
+        if self.numbersets.contains_key(&id) {
             id
         } else {
             assert!( self.numbersets.insert(id, set).is_none() );
+            id
+        }
+    }
+    
+    pub fn add_string(&mut self, buf: Vec<u8>) -> StringId {
+        let mut hasher = ahash::AHasher::new_with_keys(0, 0);
+        hasher.write(&buf);
+        let id = hasher.finish() as StringId;
+        
+        if self.strings.contains_key(&id) {
+            id
+        } else {
+            assert!( self.strings.insert(id, buf).is_none() );
             id
         }
     }

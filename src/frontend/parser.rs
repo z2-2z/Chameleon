@@ -5,6 +5,7 @@ use crate::{
         Scheduling, Variable,
         VariableType, IntegerValue,
         VariableOptions, NumbersetType,
+        BytearrayValue, StringId,
     },
     frontend::{
         lexer::{Token, TokenId},
@@ -32,6 +33,7 @@ pub enum ParserError {
     InvalidCharacter(SourceRange),
     InvalidNumberset(usize),
     InvalidTypeName(SourceRange),
+    InvalidString(SourceRange, String),
 }
 
 struct TokenScanner<'a> {
@@ -110,7 +112,6 @@ impl<'a> TokenScanner<'a> {
         }
     }
     
-    //TODO: rename to peek
     fn current(&self) -> Option<&'a Token> {
         if self.cursor < self.tokens.len() {
             Some(&self.tokens[self.cursor])
@@ -132,6 +133,21 @@ impl<'a> TokenScanner<'a> {
     fn get_source(&self, range: &SourceRange) -> &'a str {
         // The lexer ensures that range is in bounds
         self.view.range(&range)
+    }
+}
+
+#[inline]
+fn is_hex_char(c: u8) -> bool {
+    (c >= 0x30 && c < 0x3a) || (c >= 0x41 && c <= 0x46) || (c >= 0x61 && c <= 0x66)
+}
+#[inline]
+fn hex_to_dec(c: u8) -> u8 {
+    if c < 0x3a {
+        c - 0x30
+    } else if c <= 0x46 {
+        c - 0x41 + 10
+    } else {
+        c - 0x61 + 10
     }
 }
 
@@ -300,7 +316,7 @@ impl<'a> Parser<'a> {
                     }
                     
                     self.scanner.forward(1);
-                    let ranges = self.parse_numberset::<u32>(grammar, false)?;
+                    let ranges = self.parse_numberset::<u32>(false)?;
                     let id = grammar.add_numberset(NumbersetType::U32(ranges));
                     var_opts.set_repeats(id);
                     had_repeats = true;
@@ -325,52 +341,75 @@ impl<'a> Parser<'a> {
                 self.scanner.forward(1);
                 
                 let ret = match self.scanner.current() {
-                    Some(Token::String(pos)) => {
-                        // check type name
+                    Some(Token::String(_)) => {
+                        let is_binary = match self.scanner.get_source(&type_name) {
+                            keywords::TYPE_STRING => false,
+                            keywords::TYPE_BYTES => true,
+                            _ => {
+                                return Err(ParserError::InvalidTypeName(type_name.clone()));
+                            },
+                        };
+                        
                         // parse string binary or not
-                        todo!();
+                        let id = self.parse_string_literal(grammar, is_binary)?;
+                        
+                        if is_binary {
+                            VariableType::Bytes(BytearrayValue::Literal(id))
+                        } else {
+                            VariableType::String(BytearrayValue::Literal(id))
+                        }
                     },
                     Some(Token::NumbersetStart(_)) => {
                         match self.scanner.get_source(&type_name) {
                             keywords::TYPE_U8 => {
-                                let ranges = self.parse_numberset::<u8>(grammar, true)?;
+                                let ranges = self.parse_numberset::<u8>(true)?;
                                 let id = grammar.add_numberset(NumbersetType::U8(ranges));
                                 VariableType::U8(IntegerValue::FromSet(id))
                             },
                             keywords::TYPE_I8 => {
-                                let ranges = self.parse_numberset::<i8>(grammar, true)?;
+                                let ranges = self.parse_numberset::<i8>(true)?;
                                 let id = grammar.add_numberset(NumbersetType::I8(ranges));
                                 VariableType::I8(IntegerValue::FromSet(id))
                             },
                             keywords::TYPE_U16 => {
-                                let ranges = self.parse_numberset::<u16>(grammar, false)?;
+                                let ranges = self.parse_numberset::<u16>(false)?;
                                 let id = grammar.add_numberset(NumbersetType::U16(ranges));
                                 VariableType::U16(IntegerValue::FromSet(id))
                             },
                             keywords::TYPE_I16 => {
-                                let ranges = self.parse_numberset::<i16>(grammar, false)?;
+                                let ranges = self.parse_numberset::<i16>(false)?;
                                 let id = grammar.add_numberset(NumbersetType::I16(ranges));
                                 VariableType::I16(IntegerValue::FromSet(id))
                             },
                             keywords::TYPE_U32 => {
-                                let ranges = self.parse_numberset::<u32>(grammar, false)?;
+                                let ranges = self.parse_numberset::<u32>(false)?;
                                 let id = grammar.add_numberset(NumbersetType::U32(ranges));
                                 VariableType::U32(IntegerValue::FromSet(id))
                             },
                             keywords::TYPE_I32 => {
-                                let ranges = self.parse_numberset::<i32>(grammar, false)?;
+                                let ranges = self.parse_numberset::<i32>(false)?;
                                 let id = grammar.add_numberset(NumbersetType::I32(ranges));
                                 VariableType::I32(IntegerValue::FromSet(id))
                             },
                             keywords::TYPE_U64 => {
-                                let ranges = self.parse_numberset::<u64>(grammar, false)?;
+                                let ranges = self.parse_numberset::<u64>(false)?;
                                 let id = grammar.add_numberset(NumbersetType::U64(ranges));
                                 VariableType::U64(IntegerValue::FromSet(id))
                             },
                             keywords::TYPE_I64 => {
-                                let ranges = self.parse_numberset::<i64>(grammar, false)?;
+                                let ranges = self.parse_numberset::<i64>(false)?;
                                 let id = grammar.add_numberset(NumbersetType::I64(ranges));
                                 VariableType::I64(IntegerValue::FromSet(id))
+                            },
+                            keywords::TYPE_STRING => {
+                                let ranges = self.parse_numberset::<u32>(false)?;
+                                let id = grammar.add_numberset(NumbersetType::U32(ranges));
+                                VariableType::String(BytearrayValue::Any(id))
+                            },
+                            keywords::TYPE_BYTES => {
+                                let ranges = self.parse_numberset::<u32>(false)?;
+                                let id = grammar.add_numberset(NumbersetType::U32(ranges));
+                                VariableType::Bytes(BytearrayValue::Any(id))
                             },
                             _ => {
                                 return Err(ParserError::InvalidTypeName(type_name.clone()));
@@ -420,15 +459,17 @@ impl<'a> Parser<'a> {
             keywords::TYPE_I32 => Ok(VariableType::I32(IntegerValue::Any)),
             keywords::TYPE_U64 => Ok(VariableType::U64(IntegerValue::Any)),
             keywords::TYPE_I64 => Ok(VariableType::I64(IntegerValue::Any)),
+            keywords::TYPE_STRING |
+            keywords::TYPE_BYTES |
             keywords::TYPE_ONEOF => Err(ParserError::InvalidKeyword(
                 type_name.clone(),
-                format!("Keyword '{}' is not allowed as a type name", keywords::TYPE_ONEOF)
+                "Only number types can be specified without an assignment".to_string()
             )),
             _ => Ok(VariableType::ResolveContainerRef(type_name)),
         }
     }
     
-    fn parse_numberset<T>(&mut self, grammar: &mut Grammar, allow_chars: bool) -> Result<Vec<Range<T>>, ParserError>
+    fn parse_numberset<T>(&mut self, allow_chars: bool) -> Result<Vec<Range<T>>, ParserError>
     where
         T: Num + Copy + core::cmp::Ord + NumCast + std::fmt::Debug,
     {
@@ -564,7 +605,6 @@ impl<'a> Parser<'a> {
         }
     }
     
-    //TODO: test
     fn parse_char_literal(&mut self, literal: &SourceRange) -> Result<u8, ParserError> {
         let source = self.scanner.get_source(literal);
         
@@ -589,5 +629,74 @@ impl<'a> Parser<'a> {
         } else {
             Ok(source.as_bytes()[0])
         }
+    }
+    
+    fn parse_string_literal(&mut self, grammar: &mut Grammar, is_binary: bool) -> Result<StringId, ParserError> {
+        let literal = match self.scanner.expect(TokenId::String)? {
+            Token::String(literal) => literal,
+            _ => unreachable!(),
+        };
+        let source = self.scanner.get_source(&literal).as_bytes();
+        
+        if source.is_empty() {
+            return Err(ParserError::InvalidString(
+                SourceRange::new(literal.start - 1, literal.end + 1),
+                "strings cannot be empty".to_string(),
+            ));
+        }
+        
+        let mut buf = Vec::<u8>::new();
+        let mut i = 0;
+        
+        while i < source.len() {
+            let c = if source[i] == b'\\' {
+                i += 1;
+                match source[i] {
+                    b'\\' => b'\\', 
+                    b'r' => b'\r',
+                    b'"' => b'"',
+                    b'n' => b'\n',
+                    b't' => b'\t',
+                    b'0' => 0,
+                    b'a' => 7,
+                    b'b' => 8,
+                    b'v' => 11,
+                    b'f' => 12,
+                    b'x' => {
+                        i += 2;
+                        
+                        if i >= source.len() || !is_hex_char(source[i - 1]) || !is_hex_char(source[i]) {
+                            return Err(ParserError::InvalidString(
+                                SourceRange::new(literal.start + i - 3, std::cmp::min(literal.start + i + 1, literal.end)),
+                                "Invalid escape character".to_string(),
+                            ));
+                        }
+                        
+                        if !is_binary {
+                            return Err(ParserError::InvalidString(
+                                SourceRange::new(literal.start + i - 3, literal.start + i + 1),
+                                format!("This escape sequence is only allowed in variables of type '{}'", keywords::TYPE_BYTES)
+                            ));
+                        }
+                        
+                        hex_to_dec(source[i - 1]) * 16 + hex_to_dec(source[i])
+                    },
+                    _ => {
+                        return Err(ParserError::InvalidString(
+                            SourceRange::new(literal.start + i, literal.start + i + 2),
+                            "Invalid escape character".to_string(),
+                        ))
+                    },
+                }
+            } else {
+                source[i]
+            };
+            
+            buf.push(c);
+            
+            i += 1;
+        }
+        
+        Ok(grammar.add_string(buf))
     }
 }

@@ -222,6 +222,11 @@ fn print_parsing_error(view: &frontend::SourceView, error: &frontend::ParserErro
             writeln!(&mut stream, "In line {} column {}: Specified type and value don't match", line, col)?;
             print_line_context(&mut stream, view, line, col, name.len())?;
         },
+        frontend::ParserError::InvalidString(string, message) => {
+            let (line, col) = view.lineinfo(string.start);
+            writeln!(&mut stream, "In line {} column {}: {}", line, col, message)?;
+            print_line_context(&mut stream, view, line, col, string.len())?;
+        },
     }
     
     writeln!(&mut stream, "")?;
@@ -241,10 +246,6 @@ fn main() {
             std::process::exit(1);
         },
     };
-    
-    for token in &tokens {
-        println!("{:?}", token);
-    }
     
     let mut parser = frontend::Parser::new(&view, &tokens);
     

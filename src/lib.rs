@@ -1,7 +1,5 @@
 mod frontend;
 
-//TODO: remove
-#[allow(dead_code)]
 mod grammar;
 
 pub use frontend::Lexer;

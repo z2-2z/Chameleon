@@ -26,5 +26,7 @@ pub const TYPE_I32: &str = "i32";
 pub const TYPE_U64: &str = "u64";
 pub const TYPE_I64: &str = "i64";
 pub const TYPE_ONEOF: &str = "oneof";
+pub const TYPE_STRING: &str = "string";
+pub const TYPE_BYTES: &str = "bytes";
 
 //pub static ROOT_CONTAINER: &str = "Root";
