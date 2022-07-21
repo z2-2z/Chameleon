@@ -208,48 +208,56 @@ impl NumbersetType {
         
         match self {
             NumbersetType::U8(set) => {
+                hasher.write("U8".as_bytes());
                 for range in set {
                     hasher.write_u8(range.start);
                     hasher.write_u8(range.end);
                 }
             },
             NumbersetType::I8(set) => {
+                hasher.write("I8".as_bytes());
                 for range in set {
                     hasher.write_i8(range.start);
                     hasher.write_i8(range.end);
                 }
             },
             NumbersetType::U16(set) => {
+                hasher.write("U16".as_bytes());
                 for range in set {
                     hasher.write_u16(range.start);
                     hasher.write_u16(range.end);
                 }
             },
             NumbersetType::I16(set) => {
+                hasher.write("I16".as_bytes());
                 for range in set {
                     hasher.write_i16(range.start);
                     hasher.write_i16(range.end);
                 }
             },
             NumbersetType::U32(set) => {
+                hasher.write("U32".as_bytes());
                 for range in set {
                     hasher.write_u32(range.start);
                     hasher.write_u32(range.end);
                 }
             },
             NumbersetType::I32(set) => {
+                hasher.write("I32".as_bytes());
                 for range in set {
                     hasher.write_i32(range.start);
                     hasher.write_i32(range.end);
                 }
             },
             NumbersetType::U64(set) => {
+                hasher.write("U64".as_bytes());
                 for range in set {
                     hasher.write_u64(range.start);
                     hasher.write_u64(range.end);
                 }
             },
             NumbersetType::I64(set) => {
+                hasher.write("I64".as_bytes());
                 for range in set {
                     hasher.write_i64(range.start);
                     hasher.write_i64(range.end);

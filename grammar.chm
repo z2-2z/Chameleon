@@ -90,7 +90,7 @@ struct LocalOptions {
 struct VariableFlags {
     optional       _: u8;
     repeats 50     _: u8;
-    repeats 0..100 _: u8;
+    optional repeats 1..100 _: u8;
 }
 
 struct Root {
