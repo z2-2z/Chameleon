@@ -764,6 +764,7 @@ impl<'a> Lexer<'a> {
             // If we have a ',', parse again
             if self.scanner.peek(keywords::NUMBERSET_DELIM) {
                 self.scanner.forward(keywords::NUMBERSET_DELIM.len());
+                self.scanner.skip(&mut is_whitespace_nonl);
             } else {
                 break;
             }

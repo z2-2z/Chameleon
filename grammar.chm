@@ -1,0 +1,102 @@
+/*
+                 C H A M E L E O N
+                      _       _._
+               _,,-''' ''-,_ }'._''.,_.=._
+            ,-'      _ _    '        (  @)'-,
+          ,'  _..==;;::_::'-     __..----'''}
+         :  .'::_;==''       ,'',: : : '' '}
+        }  '::-'            /   },: : : :_,'
+       :  :'     _..,,_    '., '._-,,,--\'    _
+      :  ;   .-'       :      '-, ';,__\.\_.-'
+     {   '  :    _,,,   :__,,--::',,}___}^}_.-'
+     }        _,'__''',  ;_.-''_.-'
+    :      ,':-''  ';, ;  ;_..-'
+_.-' }    ,',' ,''',  : ^^
+_.-''{    { ; ; ,', '  :
+      }   } :  ;_,' ;  }
+       {   ',',___,'   '
+        ',           ,'
+          '-,,__,,-'
+
+-----------------------------------------------------------
+
+This file is a reference grammar that explains the syntax of a
+grammar file.
+*/
+
+/* This is a comment.
+   /* Nested comments are also possible */
+*/
+
+/* TODO: explanations */
+
+option endianness = little;
+option endianness = big;
+option endianness = native;
+option scheduling = round-robin;
+option scheduling = random;
+
+struct NumberTypes {
+    byte: u8;
+    byte: u8 = 'A', 0xF, 0o7, 0b101;
+    byte: i8 = -128..127;
+    
+    word: u16 = 0..0xFFFF;
+    word: i16 = -32768..0x7FFF;
+    
+    dword: u32 = 0..0xFFFFFFFF;
+    dword: i32 = -2147483648..0x7FFFFFFF;
+    
+    qword: u64 = 0..0xFFFFFFFFFFFFFFFF;
+    qword: i64 = -9223372036854775808..0x7FFFFFFFFFFFFFFF;
+}
+
+struct BytearrayTypes {
+    string: string = "Hello World!";
+    string: string = 8..16;
+    string: string = "\\ \" \0 \a \b \t \n \v \f \r";
+    
+    bytes: bytes = "Hello World!";
+    bytes: bytes = "\\ \" \0 \a \b \t \n \v \f \r \xFF";
+    string: string = 8..16;
+}
+
+struct OneofTypes {
+    selection: oneof {
+        opt_1: NumberTypes;
+        opt_2: ByteArrayTypes;
+        opt_3: oneof {
+            opt_1: u8;
+            opt_2: u8;
+        };
+    };
+}
+
+struct LocalOptions {
+    option endianness = big;
+    option scheduling = random;
+    
+    swapped: u16 = 0x1337;
+    random: u8;
+        
+    sublocal_options: oneof {
+        option scheduling = round-robin;
+        
+        opt_1: u8;
+        opt_2: u8;
+    };
+}
+
+struct VariableFlags {
+    optional       _: u8;
+    repeats 50     _: u8;
+    repeats 0..100 _: u8;
+}
+
+struct Root {
+    _: NumberTypes;
+    _: BytearrayTypes;
+    _: OneofTypes;
+    _: LocalOptions;
+    _: VariableFlags;
+}

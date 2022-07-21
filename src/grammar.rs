@@ -173,6 +173,10 @@ impl Container {
     pub fn resolve_reference(&mut self, var: usize, target: ContainerId) {
         self.variables[var].typ = VariableType::ContainerRef(target);
     }
+    
+    pub fn variables(&self) -> &[Variable] {
+        &self.variables
+    }
 }
 impl HasOptions for Container {
     fn options_mut(&mut self) -> &mut ContainerOptions {

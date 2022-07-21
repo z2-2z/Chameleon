@@ -37,6 +37,7 @@ pub enum ParserError {
     InvalidString(SourceRange, String),
     NoRoot,
     UnresolvedRef(SourceRange),
+    EmptyBlock(usize),
 }
 
 struct TokenScanner<'a> {
@@ -298,7 +299,11 @@ impl<'a> Parser<'a> {
     }
     
     fn parse_block(&mut self, grammar: &mut Grammar, container: &mut Container) -> Result<(), ParserError> {
-        self.scanner.expect(TokenId::BlockOpen)?;
+        let mut had_vars = false;
+        let block_start = match self.scanner.expect(TokenId::BlockOpen)? {
+            Token::BlockOpen(block_start) => *block_start,
+            _ => unreachable!(),
+        };
         
         // Options may be overwritten in a block
         self.parse_options_list(container)?;
@@ -307,11 +312,16 @@ impl<'a> Parser<'a> {
         while let Some(token) = self.scanner.current() {
             match token {
                 Token::BlockClose => {
+                    if !had_vars {
+                        return Err(ParserError::EmptyBlock(block_start));
+                    }
+                    
                     self.scanner.forward(1);
                     return Ok(());
                 },
                 
                 Token::VariableStart(_) => {
+                    had_vars = true;
                     let variable = self.parse_variable_definition(grammar)?;
                     container.add_variable(variable);
                 },
@@ -478,6 +488,13 @@ impl<'a> Parser<'a> {
                 let id = grammar.reserve_container_id();
                 let mut container = Container::new(id, grammar.options().clone(), None);
                 self.parse_block(grammar, &mut container)?;
+                
+                if container.variables().len() == 1 {
+                    return Err(ParserError::InvalidKeyword(
+                        type_name.clone(),
+                        format!("'{}' must have more than 1 variable", keywords::TYPE_ONEOF),
+                    ));
+                }
                 
                 // Create type
                 grammar.add_container(container);

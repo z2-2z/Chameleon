@@ -2,8 +2,6 @@ use termcolor;
 use termcolor::WriteColor;
 use std::io::Write;
 
-//TODO: remove
-#[allow(dead_code)]
 mod grammar;
 
 mod frontend;
@@ -235,6 +233,11 @@ fn print_parsing_error(view: &frontend::SourceView, error: &frontend::ParserErro
             writeln!(&mut stream, "In line {} column {}: Couldn't find a struct with the given name", line, col)?;
             print_line_context(&mut stream, view, line, col, reference.len())?;
         },
+        frontend::ParserError::EmptyBlock(block) => {
+            let (line, col) = view.lineinfo(*block);
+            writeln!(&mut stream, "In line {} column {}: Blocks without variables are not allowed", line, col)?;
+            print_line_context(&mut stream, view, line, col, 1)?;
+        },
     }
     
     writeln!(&mut stream, "")?;
@@ -242,7 +245,7 @@ fn print_parsing_error(view: &frontend::SourceView, error: &frontend::ParserErro
 }
 
 fn main() {
-    let view = frontend::SourceView::from_file("all.chm");
+    let view = frontend::SourceView::from_file("grammar.chm");
     let mut lexer = frontend::Lexer::new(&view);
     
     let tokens = match lexer.lex() {
