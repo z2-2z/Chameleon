@@ -6,4 +6,6 @@ struct asdf{
     };
 }
 
-struct asdf2 {}
+struct Root {
+    _: asdf;
+}

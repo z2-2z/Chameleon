@@ -1,5 +1,5 @@
 mod lexer;
-mod keywords;
+pub mod keywords;
 mod parser;
 
 mod source_view;

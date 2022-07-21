@@ -12,6 +12,7 @@ pub type ContainerId = usize;
 pub type StringId = usize;
 
 /// Allowed values for the endianness option in containers
+#[derive(Clone)]
 pub enum Endianness {
     Big,
     Little,
@@ -24,6 +25,7 @@ impl Default for Endianness {
 }
 
 /// Allowed values for the scheduling option in containers
+#[derive(Clone)]
 pub enum Scheduling {
     RoundRobin,
     Random,
@@ -35,6 +37,7 @@ impl Default for Scheduling {
 }
 
 /// Storage for all possible options in a container
+#[derive(Clone)]
 pub struct ContainerOptions {
     endianness: Endianness,
     scheduling: Scheduling,
@@ -136,10 +139,10 @@ pub struct Container {
     variables: Vec<Variable>,
 }
 impl Container {
-    pub fn new(id: ContainerId, name: Option<SourceRange>) -> Self {
+    pub fn new(id: ContainerId, options: ContainerOptions, name: Option<SourceRange>) -> Self {
         Self {
             id,
-            options: ContainerOptions::default(),
+            options,
             name,
             variables: Vec::new(),
         }
@@ -155,6 +158,20 @@ impl Container {
     
     pub fn add_variable(&mut self, var: Variable) {
         self.variables.push(var);
+    }
+    
+    pub fn find_unresolved_name(&self) -> Option<(usize, &SourceRange)> {
+        for i in 0..self.variables.len() {
+            if let VariableType::ResolveContainerRef(range) = &self.variables[i].typ {
+                return Some((i, range));
+            }
+        }
+        
+        None
+    }
+    
+    pub fn resolve_reference(&mut self, var: usize, target: ContainerId) {
+        self.variables[var].typ = VariableType::ContainerRef(target);
     }
 }
 impl HasOptions for Container {
@@ -275,6 +292,10 @@ impl Grammar {
     
     pub fn set_root(&mut self, root: ContainerId) {
         self.root = Some(root);
+    }
+    
+    pub fn get_container(&mut self, id: ContainerId) -> Option<&mut Container> {
+        self.containers.get_mut(&id)
     }
     
     pub fn containers(&self) -> Values<'_, ContainerId, Container> {

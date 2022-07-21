@@ -6,6 +6,7 @@ use crate::{
         VariableType, IntegerValue,
         VariableOptions, NumbersetType,
         BytearrayValue, StringId,
+        ContainerId,
     },
     frontend::{
         lexer::{Token, TokenId},
@@ -34,6 +35,8 @@ pub enum ParserError {
     InvalidNumberset(usize),
     InvalidTypeName(SourceRange),
     InvalidString(SourceRange, String),
+    NoRoot,
+    UnresolvedRef(SourceRange),
 }
 
 struct TokenScanner<'a> {
@@ -173,9 +176,49 @@ impl<'a> Parser<'a> {
             grammar.add_container(container);
         }
         
-        //TODO: root container
+        // Find the root container
+        if let Some(id) = self.find_container(&grammar, keywords::ROOT_CONTAINER) {
+            grammar.set_root(id);
+        } else {
+            return Err(ParserError::NoRoot);
+        }
+        
+        // Resolve container references
+        // Due to borrow problems we first store all
+        // the references before applying them
+        let mut refs = Vec::<(ContainerId, usize, ContainerId)>::new();
+        
+        for container in grammar.containers() {
+            if let Some((var, target_name)) = container.find_unresolved_name() {
+                let source = self.scanner.get_source(target_name);
+                
+                let target = if let Some(id) = self.find_container(&grammar, source) {
+                    id
+                } else {
+                    return Err(ParserError::UnresolvedRef(target_name.clone()));
+                };
+                
+                refs.push( (container.id(), var, target) );
+            }
+        }
+        
+        for (source, var, target) in refs {
+            grammar.get_container(source).unwrap().resolve_reference(var, target);
+        }
         
         Ok(grammar)
+    }
+    
+    fn find_container(&self, grammar: &Grammar, dest: &str) -> Option<ContainerId> {
+        for container in grammar.containers() {
+            if let Some(name) = container.name() {
+                if self.scanner.get_source(name) == dest {
+                    return Some(container.id());
+                }
+            }
+        }
+        
+        None
     }
     
     fn parse_options_list<T>(&mut self, dest: &mut T) -> Result<(), ParserError>
@@ -243,7 +286,7 @@ impl<'a> Parser<'a> {
         };
         
         let id = grammar.reserve_container_id();
-        let mut container = Container::new(id, Some(name));
+        let mut container = Container::new(id, grammar.options().clone(), Some(name));
         
         // After a container definition a block must be opened
         self.parse_block(grammar, &mut container)?;
@@ -433,7 +476,7 @@ impl<'a> Parser<'a> {
                 
                 // Create container
                 let id = grammar.reserve_container_id();
-                let mut container = Container::new(id, None);
+                let mut container = Container::new(id, grammar.options().clone(), None);
                 self.parse_block(grammar, &mut container)?;
                 
                 // Create type

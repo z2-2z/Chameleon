@@ -29,4 +29,4 @@ pub const TYPE_ONEOF: &str = "oneof";
 pub const TYPE_STRING: &str = "string";
 pub const TYPE_BYTES: &str = "bytes";
 
-//pub static ROOT_CONTAINER: &str = "Root";
+pub static ROOT_CONTAINER: &str = "Root";

@@ -227,6 +227,14 @@ fn print_parsing_error(view: &frontend::SourceView, error: &frontend::ParserErro
             writeln!(&mut stream, "In line {} column {}: {}", line, col, message)?;
             print_line_context(&mut stream, view, line, col, string.len())?;
         },
+        frontend::ParserError::NoRoot => {
+            writeln!(&mut stream, "No root {0} was found. Name the {0} where generation shall start '{1}'.", frontend::keywords::CONTAINER, frontend::keywords::ROOT_CONTAINER)?;
+        },
+        frontend::ParserError::UnresolvedRef(reference) => {
+            let (line, col) = view.lineinfo(reference.start);
+            writeln!(&mut stream, "In line {} column {}: Couldn't find a struct with the given name", line, col)?;
+            print_line_context(&mut stream, view, line, col, reference.len())?;
+        },
     }
     
     writeln!(&mut stream, "")?;
