@@ -244,6 +244,85 @@ fn print_parsing_error(view: &frontend::SourceView, error: &frontend::ParserErro
     Ok(())
 }
 
+fn print_dead_containers(view: &frontend::SourceView, containers: Vec<grammar::ContainerId>, grammar: &grammar::Grammar) -> Result<(), std::io::Error> {
+    let mut bold_red = termcolor::ColorSpec::new();
+    bold_red.set_bg(None);
+    bold_red.set_bold(true);
+    bold_red.set_fg(Some(termcolor::Color::Red));
+    let mut slim_red = termcolor::ColorSpec::new();
+    slim_red.set_bg(None);
+    slim_red.set_bold(false);
+    slim_red.set_fg(Some(termcolor::Color::Red));
+    let mut stream = termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto);
+    
+    stream.set_color(&slim_red)?;
+    stream.write_all(b" ----=== ")?;
+    stream.set_color(&bold_red)?;
+    stream.write_all(b"Grammar Error")?;
+    stream.set_color(&slim_red)?;
+    stream.write_all(b" ===----")?;
+    stream.reset()?;
+    writeln!(&mut stream, "")?;
+    
+    writeln!(&mut stream, "The following containers are never being used:")?;
+    
+    for id in containers {
+        let name = grammar.container(id).unwrap().name().unwrap();
+        let (line, col) = view.lineinfo(name.start);
+        writeln!(&mut stream, " - '{}' in line {} column {}", view.range(&name), line, col)?;
+    }
+    
+    Ok(())
+}
+
+fn print_cycle(view: &frontend::SourceView, cycle: (grammar::ContainerId, grammar::ContainerId), grammar: &grammar::Grammar) -> Result<(), std::io::Error> {
+    let mut bold_red = termcolor::ColorSpec::new();
+    bold_red.set_bg(None);
+    bold_red.set_bold(true);
+    bold_red.set_fg(Some(termcolor::Color::Red));
+    let mut slim_red = termcolor::ColorSpec::new();
+    slim_red.set_bg(None);
+    slim_red.set_bold(false);
+    slim_red.set_fg(Some(termcolor::Color::Red));
+    let mut stream = termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto);
+    
+    stream.set_color(&slim_red)?;
+    stream.write_all(b" ----=== ")?;
+    stream.set_color(&bold_red)?;
+    stream.write_all(b"Grammar Error")?;
+    stream.set_color(&slim_red)?;
+    stream.write_all(b" ===----")?;
+    stream.reset()?;
+    writeln!(&mut stream, "")?;
+    
+    writeln!(&mut stream, "There exists a cycle between the two containers")?;
+    
+    let name = grammar.container(cycle.0).unwrap().name().unwrap();
+    let (line, col) = view.lineinfo(name.start);
+    writeln!(&mut stream, "1. '{}' in line {} column {}", view.range(&name), line, col)?;
+    
+    let name = grammar.container(cycle.1).unwrap().name().unwrap();
+    let (line, col) = view.lineinfo(name.start);
+    writeln!(&mut stream, "2. '{}' in line {} column {}", view.range(&name), line, col)?;
+    
+    Ok(())
+}
+
+fn verify_grammar(view: &frontend::SourceView, grammar: &grammar::Grammar) {
+    let graph = frontend::graph::GrammarGraph::from_grammar(grammar);
+    
+    let dead_containers = graph.unreachable_containers();
+    if !dead_containers.is_empty() {
+        let _ = print_dead_containers(view, dead_containers, grammar);
+        std::process::exit(1);
+    }
+    
+    if let Some(cycle) = graph.cycle() {
+        let _ = print_cycle(view, cycle, grammar);
+        std::process::exit(1);
+    }
+}
+
 fn main() {
     let view = frontend::SourceView::from_file("grammar.chm");
     let mut lexer = frontend::Lexer::new(&view);
@@ -260,7 +339,7 @@ fn main() {
     
     let mut parser = frontend::Parser::new(&view, &tokens);
     
-    let _grammar = match parser.parse() {
+    let grammar = match parser.parse() {
         Ok(grammar) => grammar,
         Err(error) => {
             if let Err(_) = print_parsing_error(&view, &error) {
@@ -269,4 +348,6 @@ fn main() {
             std::process::exit(1);
         },
     };
+    
+    verify_grammar(&view, &grammar);
 }

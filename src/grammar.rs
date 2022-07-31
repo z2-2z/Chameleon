@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::collections::btree_map::Values;
+use std::collections::btree_map::{Values, Keys};
 use std::default::Default;
 use std::ops::Range;
 use ahash;
@@ -160,16 +160,6 @@ impl Container {
         self.variables.push(var);
     }
     
-    pub fn find_unresolved_name(&self) -> Option<(usize, &SourceRange)> {
-        for i in 0..self.variables.len() {
-            if let VariableType::ResolveContainerRef(range) = &self.variables[i].typ {
-                return Some((i, range));
-            }
-        }
-        
-        None
-    }
-    
     pub fn resolve_reference(&mut self, var: usize, target: ContainerId) {
         self.variables[var].typ = VariableType::ContainerRef(target);
     }
@@ -306,12 +296,24 @@ impl Grammar {
         self.root = Some(root);
     }
     
-    pub fn get_container(&mut self, id: ContainerId) -> Option<&mut Container> {
+    pub fn root(&self) -> Option<&ContainerId> {
+        (&self.root).as_ref()
+    }
+    
+    pub fn container(&self, id: ContainerId) -> Option<&Container> {
+        self.containers.get(&id)
+    }
+    
+    pub fn container_mut(&mut self, id: ContainerId) -> Option<&mut Container> {
         self.containers.get_mut(&id)
     }
     
     pub fn containers(&self) -> Values<'_, ContainerId, Container> {
         self.containers.values()
+    }
+    
+    pub fn container_ids(&self) -> Keys<'_, ContainerId, Container> {
+        self.containers.keys()
     }
     
     pub fn add_numberset(&mut self, set: NumbersetType) -> NumbersetId {
@@ -336,6 +338,43 @@ impl Grammar {
             assert!( self.strings.insert(id, buf).is_none() );
             id
         }
+    }
+    
+    pub fn container_callees(&self, id: ContainerId) -> Vec<ContainerId> {
+        let mut ret = Vec::<ContainerId>::new();
+        
+        for var in &self.containers.get(&id).unwrap().variables {
+            match &var.typ {
+                VariableType::ContainerRef(id) => {
+                    ret.push(id.clone());
+                },
+                VariableType::Oneof(id) => {
+                    let mut callees = self.container_callees(*id);
+                    ret.append(&mut callees);
+                },
+                VariableType::ResolveContainerRef(_) => panic!("Encountered unresolved reference after parsing stage"),
+                _ => {},
+            }
+        }
+        
+        ret
+    }
+    
+    pub fn unresolved_names(&self) -> Vec<(ContainerId, usize, SourceRange)> {
+        let mut ret = Vec::new();
+        
+        for (container_id, container) in self.containers.iter() {
+            for i in 0..container.variables.len() {
+                match &container.variables[i].typ {
+                    VariableType::ResolveContainerRef(range) => {
+                        ret.push( (*container_id, i, range.clone()) );
+                    },
+                    _ => {},
+                }
+            }
+        }
+        
+        ret
     }
 }
 

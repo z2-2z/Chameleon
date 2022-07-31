@@ -187,24 +187,16 @@ impl<'a> Parser<'a> {
         // Resolve container references
         // Due to borrow problems we first store all
         // the references before applying them
-        let mut refs = Vec::<(ContainerId, usize, ContainerId)>::new();
-        
-        for container in grammar.containers() {
-            if let Some((var, target_name)) = container.find_unresolved_name() {
-                let source = self.scanner.get_source(target_name);
-                
-                let target = if let Some(id) = self.find_container(&grammar, source) {
-                    id
-                } else {
-                    return Err(ParserError::UnresolvedRef(target_name.clone()));
-                };
-                
-                refs.push( (container.id(), var, target) );
-            }
-        }
-        
-        for (source, var, target) in refs {
-            grammar.get_container(source).unwrap().resolve_reference(var, target);
+        for (container_id, var, name) in grammar.unresolved_names() {
+            let source = self.scanner.get_source(&name);
+            
+            let target = if let Some(id) = self.find_container(&grammar, source) {
+                id
+            } else {
+                return Err(ParserError::UnresolvedRef(name.clone()));
+            };
+            
+            grammar.container_mut(container_id).unwrap().resolve_reference(var, target);
         }
         
         Ok(grammar)

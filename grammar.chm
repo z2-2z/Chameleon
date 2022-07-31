@@ -64,7 +64,7 @@ struct BytearrayTypes {
 struct OneofTypes {
     selection: oneof {
         opt_1: NumberTypes;
-        opt_2: ByteArrayTypes;
+        opt_2: BytearrayTypes;
         opt_3: oneof {
             opt_1: u8;
             opt_2: u8;

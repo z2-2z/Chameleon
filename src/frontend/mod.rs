@@ -1,6 +1,7 @@
 mod lexer;
 pub mod keywords;
 mod parser;
+pub mod graph;
 
 mod source_view;
 
