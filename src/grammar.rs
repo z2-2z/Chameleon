@@ -131,17 +131,25 @@ impl Variable {
     }
 }
 
+#[derive(PartialEq, Copy, Clone)]
+pub enum ContainerType {
+    Oneof,
+    Struct,
+}
+
 /// A container for variables
 pub struct Container {
     id: ContainerId,
+    typ: ContainerType,
     options: ContainerOptions,
     name: Option<SourceRange>,
     variables: Vec<Variable>,
 }
 impl Container {
-    pub fn new(id: ContainerId, options: ContainerOptions, name: Option<SourceRange>) -> Self {
+    pub fn new(id: ContainerId, typ: ContainerType, options: ContainerOptions, name: Option<SourceRange>) -> Self {
         Self {
             id,
+            typ,
             options,
             name,
             variables: Vec::new(),
@@ -166,6 +174,10 @@ impl Container {
     
     pub fn variables(&self) -> &[Variable] {
         &self.variables
+    }
+    
+    pub fn typ(&self) -> ContainerType {
+        self.typ
     }
 }
 impl HasOptions for Container {
@@ -346,7 +358,9 @@ impl Grammar {
         for var in &self.containers.get(&id).unwrap().variables {
             match &var.typ {
                 VariableType::ContainerRef(id) => {
-                    ret.push(id.clone());
+                    if self.containers.get(&id).unwrap().typ() == ContainerType::Struct {
+                        ret.push(id.clone());
+                    }
                 },
                 VariableType::Oneof(id) => {
                     let mut callees = self.container_callees(*id);

@@ -6,7 +6,7 @@ use crate::{
         VariableType, IntegerValue,
         VariableOptions, NumbersetType,
         BytearrayValue, StringId,
-        ContainerId,
+        ContainerId, ContainerType,
     },
     frontend::{
         lexer::{Token, TokenId},
@@ -279,7 +279,7 @@ impl<'a> Parser<'a> {
         };
         
         let id = grammar.reserve_container_id();
-        let mut container = Container::new(id, grammar.options().clone(), Some(name));
+        let mut container = Container::new(id, ContainerType::Struct, grammar.options().clone(), Some(name));
         
         // After a container definition a block must be opened
         self.parse_block(grammar, &mut container)?;
@@ -332,7 +332,10 @@ impl<'a> Parser<'a> {
     }
     
     fn parse_variable_definition(&mut self, grammar: &mut Grammar) -> Result<Variable, ParserError> {
-        self.scanner.expect(TokenId::VariableStart)?;
+        let var_start = match self.scanner.expect(TokenId::VariableStart)? {
+            Token::VariableStart(var_start) => var_start,
+            _ => unreachable!(),
+        };
         
         // Parse variable options
         let mut had_optional = false;
@@ -406,6 +409,7 @@ impl<'a> Parser<'a> {
                     },
                     Some(Token::NumbersetStart(_)) => {
                         match self.scanner.get_source(&type_name) {
+                            keywords::TYPE_CHAR |
                             keywords::TYPE_U8 => {
                                 let ranges = self.parse_numberset::<u8>(true)?;
                                 let id = grammar.add_numberset(NumbersetType::U8(ranges));
@@ -468,20 +472,33 @@ impl<'a> Parser<'a> {
                 ret
             },
             Some(Token::BlockOpen(_)) => {
-                // Check that the type name is 'oneof'
-                if self.scanner.get_source(&type_name) != keywords::TYPE_ONEOF {
-                    return Err(ParserError::InvalidKeyword(
-                        type_name.clone(),
-                        format!("Expected '{}'", keywords::TYPE_ONEOF),
-                    ));
-                }
+                // Check type name
+                let typ = match self.scanner.get_source(&type_name) {
+                    keywords::TYPE_ONEOF => ContainerType::Oneof,
+                    keywords::CONTAINER => ContainerType::Struct,
+                    _ => {
+                        return Err(ParserError::InvalidKeyword(
+                            type_name.clone(),
+                            format!("Expected '{}' or '{}'", keywords::TYPE_ONEOF, keywords::CONTAINER),
+                        ));
+                    },
+                };
                 
                 // Create container
                 let id = grammar.reserve_container_id();
-                let mut container = Container::new(id, grammar.options().clone(), None);
+                let mut container = Container::new(
+                    id, 
+                    typ, 
+                    grammar.options().clone(), 
+                    if typ == ContainerType::Oneof {
+                        None
+                    } else {
+                        Some(SourceRange::new(*var_start, *var_start))
+                    }
+                );
                 self.parse_block(grammar, &mut container)?;
                 
-                if container.variables().len() == 1 {
+                if typ == ContainerType::Oneof && container.variables().len() == 1 {
                     return Err(ParserError::InvalidKeyword(
                         type_name.clone(),
                         format!("'{}' must have more than 1 variable", keywords::TYPE_ONEOF),
@@ -490,7 +507,12 @@ impl<'a> Parser<'a> {
                 
                 // Create type
                 grammar.add_container(container);
-                VariableType::Oneof(id)
+                
+                if typ == ContainerType::Oneof {
+                    VariableType::Oneof(id)
+                } else {
+                    VariableType::ContainerRef(id)
+                }
             },
             Some(Token::VariableEnd) => self.parse_variable_value_any(type_name)?,
             _ => unreachable!(),
@@ -503,6 +525,7 @@ impl<'a> Parser<'a> {
     
     fn parse_variable_value_any(&mut self, type_name: SourceRange) -> Result<VariableType, ParserError> {
         match self.scanner.get_source(&type_name) {
+            keywords::TYPE_CHAR |
             keywords::TYPE_U8 => Ok(VariableType::U8(IntegerValue::Any)),
             keywords::TYPE_I8 => Ok(VariableType::I8(IntegerValue::Any)),
             keywords::TYPE_U16 => Ok(VariableType::U16(IntegerValue::Any)),

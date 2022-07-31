@@ -1,18 +1,18 @@
 
-pub static CONTAINER: &str = "struct";
-pub static OPTION: &str = "option";
-pub static COMMENT_OPEN: &str = "/*";
-pub static COMMENT_CLOSE: &str = "*/";
-pub static TERMINATE_STATEMENT: &str = ";";
-pub static ASSIGNMENT: &str = "=";
-pub static BLOCK_OPEN: &str = "{";
-pub static BLOCK_CLOSE: &str = "}";
-pub static VAROPT_OPTIONAL: &str = "optional";
-pub static VAROPT_REPEATS: &str = "repeats";
-pub static RANGE_OP: &str = "..";
-pub static NUMBERSET_DELIM: &str = ",";
-pub static VAR_TYPE_SEP: &str = ":";
-pub static STRING_DELIM: &str = "\"";
+pub const CONTAINER: &str = "struct";
+pub const OPTION: &str = "option";
+pub const COMMENT_OPEN: &str = "/*";
+pub const COMMENT_CLOSE: &str = "*/";
+pub const TERMINATE_STATEMENT: &str = ";";
+pub const ASSIGNMENT: &str = "=";
+pub const BLOCK_OPEN: &str = "{";
+pub const BLOCK_CLOSE: &str = "}";
+pub const VAROPT_OPTIONAL: &str = "optional";
+pub const VAROPT_REPEATS: &str = "repeats";
+pub const RANGE_OP: &str = "..";
+pub const NUMBERSET_DELIM: &str = ",";
+pub const VAR_TYPE_SEP: &str = ":";
+pub const STRING_DELIM: &str = "\"";
 
 pub const OPTION_ENDIANNESS: &str = "endianness";
 pub const OPTION_SCHEDULING: &str = "scheduling";
@@ -28,5 +28,6 @@ pub const TYPE_I64: &str = "i64";
 pub const TYPE_ONEOF: &str = "oneof";
 pub const TYPE_STRING: &str = "string";
 pub const TYPE_BYTES: &str = "bytes";
+pub const TYPE_CHAR: &str = "char";
 
-pub static ROOT_CONTAINER: &str = "Root";
+pub const ROOT_CONTAINER: &str = "Root";

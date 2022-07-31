@@ -4,7 +4,7 @@ use petgraph::{
     algo::has_path_connecting,
     Direction,
 };
-use crate::grammar::{ContainerId, Grammar};
+use crate::grammar::{ContainerId, Grammar, ContainerType};
 
 pub struct GrammarGraph<'a> {
     grammar: &'a Grammar,
@@ -18,7 +18,7 @@ impl<'a> GrammarGraph<'a> {
         let mut container_map = BTreeMap::<ContainerId, NodeIndex>::new();
         
         for id in grammar.container_ids() {
-            if grammar.container(*id).unwrap().name().is_some() {
+            if grammar.container(*id).unwrap().typ() == ContainerType::Struct {
                 let idx = graph.add_node(*id);
                 assert!( container_map.insert(*id, idx).is_none() );
             }
@@ -47,7 +47,7 @@ impl<'a> GrammarGraph<'a> {
         let root_idx = self.container_map.get(root).unwrap();
         
         for id in self.grammar.container_ids() {
-            if self.grammar.container(*id).unwrap().name().is_some() {
+            if self.grammar.container(*id).unwrap().typ() == ContainerType::Struct {
                 let target_idx = self.container_map.get(id).unwrap();
                 
                 if !has_path_connecting(&self.graph, *root_idx, *target_idx, None) {

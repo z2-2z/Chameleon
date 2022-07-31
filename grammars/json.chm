@@ -1,0 +1,59 @@
+/*
+A translation of
+https://github.com/gamozolabs/fzero_fuzzer/blob/master/json.json
+into chameleon syntax.
+*/
+
+struct Ws {
+    ws: oneof {
+        _: char = ' ';
+        _: char = '\n';
+        _: char = '\t';
+        _: char = '\r';
+    };
+}
+
+struct Member {
+    optional ws: Ws;
+    /*TODO: key: String;*/
+    optional ws: Ws;
+    _: char = ':';
+    value: Element;
+    optional ws: Ws;
+}
+
+struct MemberComma {
+    member: Member;
+    comma: char = ',';
+}
+
+struct Object {
+    _: char = '{';
+    members: oneof {
+        ws: Ws;
+        members: struct {
+            repeats 0..7 member: MemberComma;
+            member: Member;
+        };
+    };
+    _: char = '}';
+}
+
+struct Value {
+    value: oneof {
+        object: Object;
+        true: string = "true";
+        false: string = "false";
+        null: string = "null";
+    };
+}
+
+struct Element {
+    ws: Ws;
+    value: Value;
+    ws: Ws;
+}
+
+struct Root {
+    element: Element;
+}

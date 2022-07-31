@@ -299,11 +299,19 @@ fn print_cycle(view: &frontend::SourceView, cycle: (grammar::ContainerId, gramma
     
     let name = grammar.container(cycle.0).unwrap().name().unwrap();
     let (line, col) = view.lineinfo(name.start);
-    writeln!(&mut stream, "1. '{}' in line {} column {}", view.range(&name), line, col)?;
+    if name.len() == 0 {
+        writeln!(&mut stream, "1. inline struct in line {} column {}", line, col)?;
+    } else {
+        writeln!(&mut stream, "1. '{}' in line {} column {}", view.range(&name), line, col)?;
+    }
     
     let name = grammar.container(cycle.1).unwrap().name().unwrap();
     let (line, col) = view.lineinfo(name.start);
-    writeln!(&mut stream, "2. '{}' in line {} column {}", view.range(&name), line, col)?;
+    if name.len() == 0 {
+        writeln!(&mut stream, "2. inline struct in line {} column {}", line, col)?;
+    } else {
+        writeln!(&mut stream, "2. '{}' in line {} column {}", view.range(&name), line, col)?;
+    }
     
     Ok(())
 }
@@ -351,7 +359,7 @@ fn print_stats(grammar: &grammar::Grammar) {
 }
 
 fn main() {
-    let view = frontend::SourceView::from_file("grammar.chm");
+    let view = frontend::SourceView::from_file("grammars/json.chm");
     let mut lexer = frontend::Lexer::new(&view);
     
     let tokens = match lexer.lex() {
