@@ -1,27 +1,24 @@
-/*
-A translation of
-https://github.com/gamozolabs/fzero_fuzzer/blob/master/json.json
-into chameleon syntax.
-*/
-
-/*
-struct Ws {
-    ws: oneof {
-        _: char = ' ';
-        _: char = '\n';
-        _: char = '\t';
-        _: char = '\r';
-    };
+struct Char {
+    _: char = 0x00..0x22, 0x23..0x5C, 0x5D..0xFF, 0xFF;
 }
-*/
+
+struct HexDigit {
+    _: char = 0x30..0x3A, 0x41..0x47, 0x61..0x67;
+}
 
 struct String {
     _: char = '"';
     repeats 0..8 chars: oneof {
-        char: char = 0x20, 0x21, 0x23..0x5C, 0x5D..0x7F;
+        char: Char;
         esc: struct {
             _: char = '\\';
-            escc: char = '\\', 'b', 'f', 'n', 'r', 't', '"';
+            escc: oneof {
+                _: char = '\\', '/', 'b', 'f', 'n', 'r', 't', '"';
+                u: struct {
+                    _: char = 'u';
+                    repeats 4 digit: HexDigit;
+                };
+            };
         };
     };
     _: char = '"';
@@ -36,7 +33,7 @@ struct Member {
 struct Object {
     _: char = '{';
     optional members: struct {
-        repeats 0..7 member: struct {
+        repeats 0..7 _: struct {
             member: Member;
             comma: char = ',';
         };
@@ -48,7 +45,7 @@ struct Object {
 struct Array {
     _: char = '[';
     optional elements: struct {
-        repeats 0..7 element: struct {
+        repeats 0..7 _: struct {
             element: Value;
             comma: char = ',';
         };
@@ -58,7 +55,13 @@ struct Array {
 }
 
 struct Digits {
-    repeats 1..20 digits: char = 0x30..0x3A;
+    char: oneof {
+        zero: char = '0';
+        digits: struct {
+            lead: char = 0x31..0x3A;
+            repeats 0..19 follow: char = 0x30..0x3A;
+        };
+    };
 }
 
 struct Number {
@@ -66,12 +69,12 @@ struct Number {
     digits: Digits;
     optional frac: struct {
         _: char = '.';
-        digits: Digits;
+        repeats 1..20 digits: char = 0x30..0x3A;
     };
     optional exp: struct {
         e: char = 'e', 'E';
         sign: char = '+', '-';
-        digits: Digits;
+        repeats 1..20 digits: char = 0x30..0x3A;
     };
 }
 
