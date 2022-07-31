@@ -14,12 +14,9 @@ struct Ws {
 }
 
 struct Member {
-    optional ws: Ws;
     /*TODO: key: String;*/
-    optional ws: Ws;
     _: char = ':';
     value: Element;
-    optional ws: Ws;
 }
 
 struct MemberComma {

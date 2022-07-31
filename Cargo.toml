@@ -14,3 +14,4 @@ termcolor = "1.1"
 num-traits = "0.2"
 ahash = "0.7"
 petgraph = "0.6.2"
+clap = { version = "3.2.16", features = ["derive", "suggestions", "unicode", "wrap_help"] }

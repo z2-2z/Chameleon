@@ -1,10 +1,20 @@
 use termcolor;
 use termcolor::WriteColor;
 use std::io::Write;
+use clap::Parser;
 
 mod grammar;
-
 mod frontend;
+
+#[derive(clap::Parser)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(long, action, default_value_t = false)]
+    allow_cycles: bool,
+    
+    #[clap(value_parser)]
+    grammar: String,
+}
 
 /// Given a number `n`, return how many decimal digits are
 /// needed to represent this number
@@ -313,10 +323,26 @@ fn print_cycle(view: &frontend::SourceView, cycle: (grammar::ContainerId, gramma
         writeln!(&mut stream, "2. '{}' in line {} column {}", view.range(&name), line, col)?;
     }
     
+    writeln!(&mut stream, "")?;
+    writeln!(&mut stream, "If you want to allow cycles, pass --allow-cycles")?;
+    
     Ok(())
 }
 
-fn verify_grammar(view: &frontend::SourceView, grammar: &grammar::Grammar) {
+fn warning(msg: &str) -> Result<(), std::io::Error> {
+    let mut yellow = termcolor::ColorSpec::new();
+    yellow.set_bg(None);
+    yellow.set_bold(true);
+    yellow.set_fg(Some(termcolor::Color::Yellow));
+    let mut stream = termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto);
+    stream.set_color(&yellow)?;
+    write!(&mut stream, "Warning: ")?;
+    stream.reset()?;
+    writeln!(&mut stream, "{}", msg)?;
+    Ok(())
+}
+
+fn verify_grammar(view: &frontend::SourceView, grammar: &grammar::Grammar, args: &Args) {
     let graph = frontend::graph::GrammarGraph::from_grammar(grammar);
     
     let dead_containers = graph.unreachable_containers();
@@ -325,13 +351,21 @@ fn verify_grammar(view: &frontend::SourceView, grammar: &grammar::Grammar) {
         std::process::exit(1);
     }
     
-    if let Some(cycle) = graph.cycle() {
-        let _ = print_cycle(view, cycle, grammar);
-        std::process::exit(1);
+    if !args.allow_cycles {
+        if let Some(cycle) = graph.cycle() {
+            let _ = print_cycle(view, cycle, grammar);
+            std::process::exit(1);
+        }
+    }
+    
+    if graph.cycle().is_some() {
+        let _ = warning("Graph contains cycles so stats will not be printed");
+    } else {
+        print_stats(grammar);
     }
 }
 
-fn print_stats(grammar: &grammar::Grammar) {
+fn print_stats(grammar: &grammar::Grammar) {    
     let stats = frontend::stats::GrammarStats::from_grammar(grammar);
     
     println!("Grammar stats:");
@@ -359,7 +393,8 @@ fn print_stats(grammar: &grammar::Grammar) {
 }
 
 fn main() {
-    let view = frontend::SourceView::from_file("grammars/json.chm");
+    let args = Args::parse();
+    let view = frontend::SourceView::from_file(&args.grammar);
     let mut lexer = frontend::Lexer::new(&view);
     
     let tokens = match lexer.lex() {
@@ -384,7 +419,5 @@ fn main() {
         },
     };
     
-    verify_grammar(&view, &grammar);
-    
-    print_stats(&grammar);
+    verify_grammar(&view, &grammar, &args);
 }
