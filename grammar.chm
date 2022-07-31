@@ -65,9 +65,9 @@ struct OneofTypes {
     selection: oneof {
         opt_1: NumberTypes;
         opt_2: BytearrayTypes;
-        opt_3: oneof {
-            opt_1: u8;
-            opt_2: u8;
+        nested_oneof: oneof {
+            opt_3: u8;
+            opt_4: u8;
         };
     };
 }
@@ -78,7 +78,7 @@ struct LocalOptions {
     
     swapped: u16 = 0x1337;
     random: u8;
-        
+    
     sublocal_options: oneof {
         option scheduling = round-robin;
         

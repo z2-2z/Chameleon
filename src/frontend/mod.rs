@@ -2,6 +2,7 @@ mod lexer;
 pub mod keywords;
 mod parser;
 pub mod graph;
+pub mod stats;
 
 mod source_view;
 

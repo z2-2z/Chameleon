@@ -352,7 +352,6 @@ impl Grammar {
                     let mut callees = self.container_callees(*id);
                     ret.append(&mut callees);
                 },
-                VariableType::ResolveContainerRef(_) => panic!("Encountered unresolved reference after parsing stage"),
                 _ => {},
             }
         }
@@ -372,6 +371,132 @@ impl Grammar {
                     _ => {},
                 }
             }
+        }
+        
+        ret
+    }
+    
+    pub fn num_paths(&self, id: ContainerId) -> usize {
+        let mut num_paths: usize = 1;
+        
+        for var in &self.containers.get(&id).unwrap().variables {
+            match &var.typ {
+                VariableType::Oneof(id) => {
+                    num_paths = num_paths.saturating_mul(self.num_paths_oneof(*id));
+                },
+                VariableType::ContainerRef(id) => {
+                    num_paths = num_paths.saturating_mul(self.num_paths(*id));
+                },
+                _ => {},
+            }
+        }
+        
+        num_paths
+    }
+    
+    fn num_paths_oneof(&self, id: ContainerId) -> usize {
+        let mut num_paths: usize = 0;
+        
+        for var in &self.containers.get(&id).unwrap().variables {
+            match &var.typ {
+                VariableType::Oneof(id) => {
+                    num_paths = num_paths.saturating_add(self.num_paths_oneof(*id));
+                },
+                VariableType::ContainerRef(id) => {
+                    num_paths = num_paths.saturating_add(self.num_paths(*id));
+                },
+                _ => {
+                    num_paths += 1;
+                },
+            }
+        }
+        
+        num_paths
+    }
+    
+    pub fn container_size(&self, id: ContainerId, calc_max: bool) -> usize {
+        let mut size: usize = 0;
+        
+        for var in &self.containers.get(&id).unwrap().variables {
+            size = size.saturating_add(self.variable_size(var, calc_max));
+        }
+        
+        size
+    }
+    
+    fn container_size_bound(&self, id: ContainerId, calc_max: bool) -> usize {
+        let mut size: usize = if calc_max {
+            0
+        } else {
+            usize::MAX
+        };
+        
+        for var in &self.containers.get(&id).unwrap().variables {
+            if calc_max {
+                size = std::cmp::max(size, self.variable_size(var, calc_max));
+            } else {
+                size = std::cmp::min(size, self.variable_size(var, calc_max));
+            }
+        }
+        
+        size
+    }
+    
+    fn variable_size(&self, var: &Variable, calc_max: bool) -> usize {
+        if !calc_max && var.options.optional {
+            return 0;
+        }
+        
+        let mut var_size = match &var.typ {
+            VariableType::Oneof(id) => self.container_size_bound(*id, calc_max),
+            VariableType::ContainerRef(id) => self.container_size(*id, calc_max),
+            VariableType::U8(_) |
+            VariableType::I8(_) => 1,
+            VariableType::U16(_) |
+            VariableType::I16(_) => 2,
+            VariableType::U32(_) |
+            VariableType::I32(_) => 4,
+            VariableType::U64(_) |
+            VariableType::I64(_) => 8,
+            VariableType::Bytes(bytearray) |
+            VariableType::String(bytearray) => {
+                match bytearray {
+                    BytearrayValue::Any(id) => {
+                        self.get_numberset_bound(*id, calc_max)
+                    },
+                    BytearrayValue::Literal(id) => {
+                        self.strings.get(id).unwrap().len()
+                    },
+                }
+            },
+            VariableType::ResolveContainerRef(_) => panic!("Encountered container ref after parsing stage"),
+        };
+        
+        if let Some(id) = &var.options.repeats {
+            var_size = var_size.saturating_mul(self.get_numberset_bound(*id, calc_max));
+        }
+        
+        var_size
+    }
+    
+    fn get_numberset_bound(&self, id: NumbersetId, calc_max: bool) -> usize {
+        let mut ret: usize = if calc_max {
+            0
+        } else {
+            usize::MAX
+        };
+        
+        match self.numbersets.get(&id).unwrap() {
+            NumbersetType::U32(v) => {
+                for range in v {
+                    if calc_max {
+                        ret = std::cmp::max(ret, range.end as usize);
+                    } else {
+                        ret = std::cmp::min(ret, range.start as usize);
+                    }
+                }
+            },
+            _ => panic!("Tried to get maximum of non-u32 numberset"),
         }
         
         ret

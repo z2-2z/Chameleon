@@ -323,6 +323,33 @@ fn verify_grammar(view: &frontend::SourceView, grammar: &grammar::Grammar) {
     }
 }
 
+fn print_stats(grammar: &grammar::Grammar) {
+    let stats = frontend::stats::GrammarStats::from_grammar(grammar);
+    
+    println!("Grammar stats:");
+    
+    print!("  - number of paths = ");
+    if let Some(num_paths) = stats.num_paths() {
+        println!("{}", num_paths);
+    } else {
+        println!("too many");
+    }
+    
+    print!("  - largest input = ");
+    if let Some(max_input_size) = stats.max_input_size() {
+        println!("{} bytes", max_input_size);
+    } else {
+        println!("too big");
+    }
+    
+    print!("  - smallest input = ");
+    if let Some(min_input_size) = stats.min_input_size() {
+        println!("{} bytes", min_input_size);
+    } else {
+        println!("too big");
+    }
+}
+
 fn main() {
     let view = frontend::SourceView::from_file("grammar.chm");
     let mut lexer = frontend::Lexer::new(&view);
@@ -350,4 +377,6 @@ fn main() {
     };
     
     verify_grammar(&view, &grammar);
+    
+    print_stats(&grammar);
 }
