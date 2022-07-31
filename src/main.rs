@@ -279,7 +279,12 @@ fn print_dead_containers(view: &frontend::SourceView, containers: Vec<grammar::C
     for id in containers {
         let name = grammar.container(id).unwrap().name().unwrap();
         let (line, col) = view.lineinfo(name.start);
-        writeln!(&mut stream, " - '{}' in line {} column {}", view.range(&name), line, col)?;
+        if name.len() == 0 {
+            writeln!(&mut stream, " - anonymous struct in line {} column {}", line, col)?;
+        } else {
+            writeln!(&mut stream, " - '{}' in line {} column {}", view.range(&name), line, col)?;
+        }
+        
     }
     
     Ok(())
@@ -310,7 +315,7 @@ fn print_cycle(view: &frontend::SourceView, cycle: (grammar::ContainerId, gramma
     let name = grammar.container(cycle.0).unwrap().name().unwrap();
     let (line, col) = view.lineinfo(name.start);
     if name.len() == 0 {
-        writeln!(&mut stream, "1. inline struct in line {} column {}", line, col)?;
+        writeln!(&mut stream, "1. anonymous struct in line {} column {}", line, col)?;
     } else {
         writeln!(&mut stream, "1. '{}' in line {} column {}", view.range(&name), line, col)?;
     }
@@ -359,7 +364,7 @@ fn verify_grammar(view: &frontend::SourceView, grammar: &grammar::Grammar, args:
     }
     
     if graph.cycle().is_some() {
-        let _ = warning("Graph contains cycles so stats will not be printed");
+        let _ = warning("Graph contains cycles so no stats will be printed");
     } else {
         print_stats(grammar);
     }

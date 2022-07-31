@@ -4,6 +4,7 @@ https://github.com/gamozolabs/fzero_fuzzer/blob/master/json.json
 into chameleon syntax.
 */
 
+/*
 struct Ws {
     ws: oneof {
         _: char = ' ';
@@ -12,45 +13,80 @@ struct Ws {
         _: char = '\r';
     };
 }
+*/
 
-struct Member {
-    /*TODO: key: String;*/
-    _: char = ':';
-    value: Element;
+struct String {
+    _: char = '"';
+    repeats 0..8 chars: oneof {
+        char: char = 0x20, 0x21, 0x23..0x5C, 0x5D..0x7F;
+        esc: struct {
+            _: char = '\\';
+            escc: char = '\\', 'b', 'f', 'n', 'r', 't', '"';
+        };
+    };
+    _: char = '"';
 }
 
-struct MemberComma {
-    member: Member;
-    comma: char = ',';
+struct Member {
+    key: String;
+    _: char = ':';
+    value: Value;
 }
 
 struct Object {
     _: char = '{';
-    members: oneof {
-        ws: Ws;
-        members: struct {
-            repeats 0..7 member: MemberComma;
+    optional members: struct {
+        repeats 0..7 member: struct {
             member: Member;
+            comma: char = ',';
         };
+        member: Member;
     };
     _: char = '}';
+}
+
+struct Array {
+    _: char = '[';
+    optional elements: struct {
+        repeats 0..7 element: struct {
+            element: Value;
+            comma: char = ',';
+        };
+        element: Value;
+    };
+    _: char = ']';
+}
+
+struct Digits {
+    repeats 1..20 digits: char = 0x30..0x3A;
+}
+
+struct Number {
+    optional sign: char = '-';
+    digits: Digits;
+    optional frac: struct {
+        _: char = '.';
+        digits: Digits;
+    };
+    optional exp: struct {
+        e: char = 'e', 'E';
+        sign: char = '+', '-';
+        digits: Digits;
+    };
 }
 
 struct Value {
     value: oneof {
         object: Object;
+        array: Array;
+        string: String;
+        number: Number;
         true: string = "true";
         false: string = "false";
         null: string = "null";
     };
 }
 
-struct Element {
-    ws: Ws;
-    value: Value;
-    ws: Ws;
-}
-
 struct Root {
-    element: Element;
+    value: Value;
 }
