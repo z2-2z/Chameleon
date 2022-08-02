@@ -23,7 +23,7 @@ def ref_struct():
     else:
         return b"S%d" % (C - 1)
 
-#ctx.script("START", ["Options", "Structs"], reset_struct)
+ctx.script("START", ["Options", "Structs"], reset_struct)
 ctx.script("START", ["Structs"], reset_struct)
 ctx.rule("Options", "{Option}{Options}")
 ctx.rule("Options", "")
@@ -37,7 +37,7 @@ ctx.rule("Scheduling", "round-robin")
 ctx.rule("Structs", "{Struct}{Structs}")
 ctx.rule("Structs", "")
 ctx.script("Struct", ["Block"], next_struct)
-#ctx.rule("Block", "\{\n{Options}{VariableListing}\}")
+ctx.rule("Block", "\{\n{Options}{VariableListing}\}")
 ctx.rule("Block", "\{\n{VariableListing}\}")
 ctx.rule("VariableListing", "{Variable}{VariableListing}")
 ctx.rule("VariableListing", "")

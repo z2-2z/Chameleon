@@ -6,7 +6,7 @@ publish = false
 edition = "2018"
 
 [dependencies]
-libfuzzer-sys = "0.4"
+afl = { path = "../../../Downloads/afl.rs" }
 
 [profile.release]
 lto = true
@@ -23,10 +23,3 @@ path = ".."
 # Prevent this from interfering with workspaces
 [workspace]
 members = ["."]
-
-[[bin]]
-name = "lexer"
-path = "fuzz_targets/lexer.rs"
-test = false
-doc = false
-
