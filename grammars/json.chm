@@ -1,9 +1,9 @@
 struct Char {
-    _: char = 0x00..0x22, 0x23..0x5C, 0x5D..0xFF, 0xFF;
+    _: char = 0x00..0x21, 0x23..0x5B, 0x5D..0xFF;
 }
 
 struct HexDigit {
-    _: char = 0x30..0x3A, 0x41..0x47, 0x61..0x67;
+    _: char = 0x30..0x39, 0x41..0x46, 0x61..0x66;
 }
 
 struct String {
@@ -58,8 +58,8 @@ struct Digits {
     char: oneof {
         zero: char = '0';
         digits: struct {
-            lead: char = 0x31..0x3A;
-            repeats 0..19 follow: char = 0x30..0x3A;
+            lead: char = 0x31..0x39;
+            repeats 0..19 follow: char = 0x30..0x39;
         };
     };
 }
@@ -69,12 +69,12 @@ struct Number {
     digits: Digits;
     optional frac: struct {
         _: char = '.';
-        repeats 1..20 digits: char = 0x30..0x3A;
+        repeats 1..20 digits: char = 0x30..0x39;
     };
     optional exp: struct {
         e: char = 'e', 'E';
         sign: char = '+', '-';
-        repeats 1..20 digits: char = 0x30..0x3A;
+        repeats 1..20 digits: char = 0x30..0x39;
     };
 }
 

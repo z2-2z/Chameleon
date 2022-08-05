@@ -5,12 +5,19 @@ use clap::Parser;
 
 mod grammar;
 mod frontend;
+mod backend;
 
 #[derive(clap::Parser)]
 #[clap(author, version, about, long_about = None)]
-struct Args {
+pub struct Args {
     #[clap(long, action, default_value_t = false)]
     allow_cycles: bool,
+    
+    #[clap(short = 'o', value_parser)]
+    outfile: String,
+    
+    #[clap(long, value_parser, default_value = "")]
+    prefix: String,
     
     #[clap(value_parser)]
     grammar: String,
@@ -398,7 +405,12 @@ fn print_stats(grammar: &grammar::Grammar) {
 }
 
 fn main() {
-    let args = Args::parse();
+    let mut args = Args::parse();
+    
+    if args.prefix.len() > 0 && !args.prefix.ends_with("_") {
+        args.prefix.push('_');
+    }
+    
     let view = frontend::SourceView::from_file(&args.grammar);
     let mut lexer = frontend::Lexer::new(&view);
     
@@ -425,4 +437,6 @@ fn main() {
     };
     
     verify_grammar(&view, &grammar, &args);
+    
+    backend::default::compile_grammar(&args, &grammar, &view);
 }

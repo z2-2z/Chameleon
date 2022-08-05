@@ -7,6 +7,8 @@ use std::hash::Hasher;
 
 use crate::frontend::SourceRange;
 
+//TODO: Grammar builder ?
+
 pub type NumbersetId = usize;
 pub type ContainerId = usize;
 pub type StringId = usize;
@@ -86,6 +88,14 @@ impl VariableOptions {
     pub fn set_repeats(&mut self, numberset: NumbersetId) {
         self.repeats = Some(numberset);
     }
+    
+    pub fn optional(&self) -> bool {
+        self.optional
+    }
+    
+    pub fn repeats(&self) -> Option<&NumbersetId> {
+        self.repeats.as_ref()
+    }
 }
 
 /// Possible values for an integer
@@ -128,6 +138,14 @@ impl Variable {
             options,
             typ
         }
+    }
+    
+    pub fn options(&self) -> &VariableOptions {
+        &self.options
+    }
+    
+    pub fn typ(&self) -> &VariableType {
+        &self.typ
     }
 }
 
@@ -514,6 +532,14 @@ impl Grammar {
         }
         
         ret
+    }
+    
+    pub fn strings(&self) -> &BTreeMap<StringId, Vec<u8>> {
+        &self.strings
+    }
+    
+    pub fn numbersets(&self) -> &BTreeMap<NumbersetId, NumbersetType> {
+        &self.numbersets
     }
 }
 
