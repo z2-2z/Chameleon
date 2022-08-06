@@ -60,6 +60,10 @@ impl ContainerOptions {
     pub fn set_scheduling(&mut self, value: Scheduling) {
         self.scheduling = value;
     }
+    
+    pub fn scheduling(&self) -> &Scheduling {
+        &self.scheduling
+    }
 }
 
 pub trait HasOptions {

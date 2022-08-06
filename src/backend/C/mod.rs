@@ -4,7 +4,8 @@ use crate::{
     grammar::{
         Grammar, StringId, NumbersetId, NumbersetType,
         Numberset, ContainerId, Container, ContainerType,
-        Variable, VariableType, IntegerValue, BytearrayValue
+        Variable, VariableType, IntegerValue, BytearrayValue,
+        Scheduling, HasOptions,
     },
 };
 use std::io::{Write, Result, stdout};
@@ -47,8 +48,8 @@ fn emit_macros<T: Write>(stream: &mut T) -> Result<()> {
     write!(
         stream,
 "
-#define UNLIKELY(x) __builtin_expect((x), 0)
-#define LIKELY(x) __builtin_expect((x), 1)
+#define UNLIKELY(x) __builtin_expect(!!(x), 0)
+#define LIKELY(x) __builtin_expect(!!(x), 1)
 
 #ifndef __clang__
 #define __builtin_memcpy_inline __builtin_memcpy
@@ -145,7 +146,7 @@ fn emit_strings<T: Write>(stream: &mut T, grammar: &Grammar) -> Result<()> {
         writeln!(stream, "// Strings from grammar")?;
         
         for (id, bts) in grammar.strings().iter() {
-            write!(stream, "static unsigned char {}[{}] = {{", string_var(id), bts.len())?;
+            write!(stream, "static const unsigned char {}[{}] = {{", string_var(id), bts.len())?;
             
             for i in 0..bts.len() - 1 {
                 write!(stream, "{:#02x}, ", bts[i])?;
@@ -397,13 +398,23 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<bool> 
     Ok(label_ref)
 }
 
-//TODO: scheduling
 fn emit_oneof<T: Write>(stream: &mut T, container: &Container) -> Result<()> {
     let mut label_ref = false;
     
     writeln!(stream, "static size_t {}(unsigned char* buf, size_t len) {{", container_func(&container.id()))?;
     writeln!(stream, "    size_t original_len = len;")?;
-    writeln!(stream, "    switch(rand() % {}) {{", container.variables().len())?;
+    
+    match container.options().scheduling() {
+        Scheduling::Random => {
+            writeln!(stream, "    uint64_t oneof_selector = rand() % {};", container.variables().len())?;
+        },
+        Scheduling::RoundRobin => {
+            writeln!(stream, "    static THREAD_LOCAL uint64_t oneof_cursor = 0;")?;
+            writeln!(stream, "    uint64_t oneof_selector = oneof_cursor++ % {};", container.variables().len())?;
+        },
+    }
+    
+    writeln!(stream, "    switch(oneof_selector) {{")?;
     
     for i in 0..container.variables().len() {
         writeln!(stream, "        case {}: {{", i)?;
