@@ -1,6 +1,6 @@
 
 run: main.c json.c json.c.h
-	gcc -Wall -Wextra -Wpedantic -Werror -DDISABLE_random_buffer -g -DMULTITHREADING -o $@ -O3 -flto $^
+	gcc -Wall -Wextra -Wpedantic -Werror -DDISABLE_random_buffer -g -o $@ -O3 -flto $^
 
 json.c json.c.h: ../../grammars/json.chm
 	cargo run --release -- -o json.c --allow-cycles $<
