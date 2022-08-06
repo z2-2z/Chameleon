@@ -105,6 +105,7 @@ fn emit_helpers<T: Write>(stream: &mut T) -> Result<()> {
 // Helper method that writes random data into a buffer
 #define MASK_BYTES 0xFFFFFFFFFFFFFFFFUL
 #define MASK_STRING 0x7F7F7F7F7F7F7F7FUL
+#ifndef DISABLE_random_buffer
 static void random_buffer (unsigned char* buf, uint32_t len, uint64_t mask) {{
     while (len >= 8) {{
         *(uint64_t*)buf = rand() & mask;
@@ -126,6 +127,9 @@ static void random_buffer (unsigned char* buf, uint32_t len, uint64_t mask) {{
         buf += 1; len -= 1;
     }}
 }}
+#else
+void random_buffer (unsigned char* buf, uint32_t len, uint64_t mask);
+#endif
 "
     )?;
     Ok(())
@@ -250,7 +254,9 @@ fn emit_declarations<T: Write>(stream: &mut T, grammar: &Grammar) -> Result<()> 
     Ok(())
 }
 
-fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<()> {
+fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<bool> {
+    let mut label_ref = false;
+    
     if variable.options().optional() {
         writeln!(stream, "        if (rand() & 1) {{")?;
     }
@@ -264,6 +270,7 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<()> {
     match variable.typ() {
         VariableType::I8(integer) |
         VariableType::U8(integer) => {
+            label_ref = true;
             writeln!(stream, "        if (UNLIKELY(len < 1)) {{")?;
             writeln!(stream, "            goto container_end;")?;
             writeln!(stream, "        }}")?;
@@ -280,6 +287,7 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<()> {
         },
         VariableType::I16(integer) |
         VariableType::U16(integer) => {
+            label_ref = true;
             writeln!(stream, "        if (UNLIKELY(len < 2)) {{")?;
             writeln!(stream, "            goto container_end;")?;
             writeln!(stream, "        }}")?;
@@ -296,6 +304,7 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<()> {
         },
         VariableType::I32(integer) |
         VariableType::U32(integer) => {
+            label_ref = true;
             writeln!(stream, "        if (UNLIKELY(len < 4)) {{")?;
             writeln!(stream, "            goto container_end;")?;
             writeln!(stream, "        }}")?;
@@ -312,6 +321,7 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<()> {
         },
         VariableType::I64(integer) |
         VariableType::U64(integer) => {
+            label_ref = true;
             writeln!(stream, "        if (UNLIKELY(len < 4)) {{")?;
             writeln!(stream, "            goto container_end;")?;
             writeln!(stream, "        }}")?;
@@ -327,6 +337,7 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<()> {
             writeln!(stream, "        buf += 8; len -= 8;")?;
         },
         VariableType::String(bytearray) => {
+            label_ref = true;
             match bytearray {
                 BytearrayValue::Literal(id) => {
                     let var_name = string_var(id);
@@ -347,6 +358,7 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<()> {
             }
         },
         VariableType::Bytes(bytearray) => {
+            label_ref = true;
             match bytearray {
                 BytearrayValue::Literal(id) => {
                     let var_name = string_var(id);
@@ -382,17 +394,20 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<()> {
         writeln!(stream, "        }}")?;
     }
     
-    Ok(())
+    Ok(label_ref)
 }
 
+//TODO: scheduling
 fn emit_oneof<T: Write>(stream: &mut T, container: &Container) -> Result<()> {
+    let mut label_ref = false;
+    
     writeln!(stream, "static size_t {}(unsigned char* buf, size_t len) {{", container_func(&container.id()))?;
     writeln!(stream, "    size_t original_len = len;")?;
     writeln!(stream, "    switch(rand() % {}) {{", container.variables().len())?;
     
     for i in 0..container.variables().len() {
         writeln!(stream, "        case {}: {{", i)?;
-        emit_variable(stream, &container.variables()[i])?;
+        label_ref |= emit_variable(stream, &container.variables()[i])?;
         writeln!(stream, "        break;")?;
         writeln!(stream, "        }}")?;
     }
@@ -403,13 +418,17 @@ fn emit_oneof<T: Write>(stream: &mut T, container: &Container) -> Result<()> {
     
     writeln!(stream, "    }}")?;
     
-    writeln!(stream, "  container_end:")?;
+    if label_ref {
+        writeln!(stream, "  container_end:")?;
+    }
     writeln!(stream, "    return original_len - len;")?;
     writeln!(stream, "}}")?;
     Ok(())
 }
 
 fn emit_struct<T: Write>(stream: &mut T, container: &Container, view: &SourceView) -> Result<()> {
+    let mut label_ref = false;
+    
     writeln!(stream, "static size_t {}(unsigned char* buf, size_t len) {{", container_func(&container.id()))?;
     
     // Identifier comment
@@ -426,11 +445,13 @@ fn emit_struct<T: Write>(stream: &mut T, container: &Container, view: &SourceVie
     
     for var in container.variables() {
         writeln!(stream,"    {{")?;
-        emit_variable(stream, var)?;
+        label_ref |= emit_variable(stream, var)?;
         writeln!(stream,"    }}")?;
     }
     
-    writeln!(stream, "  container_end:")?;
+    if label_ref {
+        writeln!(stream, "  container_end:")?;
+    }
     writeln!(stream, "    return original_len - len;")?;
     writeln!(stream, "}}")?;
     Ok(())
@@ -490,6 +511,8 @@ fn write_header<T: Write>(args: &Args, mut stream: T) -> Result<()> {
 "
 #ifndef __{0}GENERATOR_H
 #define __{0}GENERATOR_H
+
+#include <stddef.h>
 
 size_t {0}generate(unsigned char* buf, size_t len);
 void {0}seed(size_t initial_seed);

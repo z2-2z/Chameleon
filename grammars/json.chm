@@ -1,5 +1,5 @@
 struct Char {
-    _: char = 0x00..0x21, 0x23..0x5B, 0x5D..0xFF;
+    _: char = 0x20..0x21, 0x23..0x5B, 0x5D..0x7F;
 }
 
 struct HexDigit {
@@ -8,7 +8,7 @@ struct HexDigit {
 
 struct String {
     _: char = '"';
-    repeats 0..8 chars: oneof {
+    repeats 0..16 chars: oneof {
         char: Char;
         esc: struct {
             _: char = '\\';
@@ -33,7 +33,7 @@ struct Member {
 struct Object {
     _: char = '{';
     optional members: struct {
-        repeats 0..7 _: struct {
+        repeats 0..12 _: struct {
             member: Member;
             comma: char = ',';
         };
@@ -45,7 +45,7 @@ struct Object {
 struct Array {
     _: char = '[';
     optional elements: struct {
-        repeats 0..7 _: struct {
+        repeats 0..12 _: struct {
             element: Value;
             comma: char = ',';
         };
