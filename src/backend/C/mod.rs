@@ -38,8 +38,6 @@ fn emit_includes<T: Write>(stream: &mut T) -> Result<()> {
 "
 #include <stddef.h>
 #include <stdint.h>
-
-void abort (void);
 "
     )?;
     Ok(())
@@ -49,9 +47,16 @@ fn emit_macros<T: Write>(stream: &mut T) -> Result<()> {
     write!(
         stream,
 "
+#define UNLIKELY(x) __builtin_expect((x), 0)
+#define LIKELY(x) __builtin_expect((x), 1)
+
+#ifndef __clang__
+#define __builtin_memcpy_inline __builtin_memcpy
+#endif
+
 // Mark globals as thread local only if we are doing multithreading
 #ifdef MULTITHREADING
-#define THREAD_LOCAL thread_local
+#define THREAD_LOCAL __thread
 #else
 #define THREAD_LOCAL
 #endif
@@ -80,7 +85,7 @@ static uint64_t rand() {{
     return rand_state = x;
 }}
 
-void {}seed (size_t s) {{
+void {}seed(size_t s) {{
     if (s) {{
         rand_state = (uint64_t) s;
     }} else {{
@@ -89,6 +94,39 @@ void {}seed (size_t s) {{
 }}
 ",
         &args.prefix,
+    )?;
+    Ok(())
+}
+
+fn emit_helpers<T: Write>(stream: &mut T) -> Result<()> {
+    write!(
+        stream,
+"
+// Helper method that writes random data into a buffer
+#define MASK_BYTES 0xFFFFFFFFFFFFFFFFUL
+#define MASK_STRING 0x7F7F7F7F7F7F7F7FUL
+static void random_buffer (unsigned char* buf, uint32_t len, uint64_t mask) {{
+    while (len >= 8) {{
+        *(uint64_t*)buf = rand() & mask;
+        buf += 8; len -= 8;
+    }}
+    
+    while (len >= 4) {{
+        *(uint32_t*)buf = (uint32_t) (rand() & mask);
+        buf += 4; len -= 4;
+    }}
+    
+    while (len >= 2) {{
+        *(uint16_t*)buf = (uint16_t) (rand() & mask);
+        buf += 2; len -= 2;
+    }}
+    
+    while (len >= 1) {{
+        *buf = (unsigned char) (rand() & mask);
+        buf += 1; len -= 1;
+    }}
+}}
+"
     )?;
     Ok(())
 }
@@ -161,7 +199,7 @@ fn emit_single_numberset<T: Write, R: Display + Ord + Num + NumCast + Copy>(stre
         }
         
         writeln!(stream, "        default: {{")?;
-        writeln!(stream, "            abort();")?;
+        writeln!(stream, "            __builtin_unreachable();")?;
         writeln!(stream, "        }}")?;
         
         writeln!(stream, "    }}")?;
@@ -212,7 +250,7 @@ fn emit_declarations<T: Write>(stream: &mut T, grammar: &Grammar) -> Result<()> 
     Ok(())
 }
 
-fn emit_variable<T: Write>(stream: &mut T, _grammar: &Grammar, _container: &Container, variable: &Variable) -> Result<()> {
+fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<()> {
     if variable.options().optional() {
         writeln!(stream, "        if (rand() & 1) {{")?;
     }
@@ -222,74 +260,118 @@ fn emit_variable<T: Write>(stream: &mut T, _grammar: &Grammar, _container: &Cont
         writeln!(stream, "        while (repeats_i--) {{")?;
     }
     
+    //TODO: endianness
     match variable.typ() {
         VariableType::I8(integer) |
         VariableType::U8(integer) => {
-            writeln!(stream, "        if (len >= 1) {{")?;
+            writeln!(stream, "        if (UNLIKELY(len < 1)) {{")?;
+            writeln!(stream, "            goto container_end;")?;
+            writeln!(stream, "        }}")?;
+            
             match integer {
                 IntegerValue::FromSet(id) => {
-                    writeln!(stream, "            *buf = (unsigned char) {}();", numberset_func(id))?;
+                    writeln!(stream, "        *buf = (unsigned char) {}();", numberset_func(id))?;
                 },
                 IntegerValue::Any => {
-                    writeln!(stream, "            *buf = (unsigned char) rand();")?;
+                    writeln!(stream, "        *buf = (unsigned char) rand();")?;
                 },
             }
-            writeln!(stream, "            buf += 1; len -= 1;")?;
-            writeln!(stream, "        }}")?;
+            writeln!(stream, "        buf += 1; len -= 1;")?;
         },
         VariableType::I16(integer) |
         VariableType::U16(integer) => {
-            writeln!(stream, "        if (len >= 2) {{")?;
+            writeln!(stream, "        if (UNLIKELY(len < 2)) {{")?;
+            writeln!(stream, "            goto container_end;")?;
+            writeln!(stream, "        }}")?;
+            
             match integer {
                 IntegerValue::FromSet(id) => {
-                    writeln!(stream, "            *(uint16_t*)buf = (uint16_t) {}();", numberset_func(id))?;
+                    writeln!(stream, "        *(uint16_t*)buf = (uint16_t) {}();", numberset_func(id))?;
                 },
                 IntegerValue::Any => {
-                    writeln!(stream, "            *(uint16_t*)buf = (uint16_t) rand();")?;
+                    writeln!(stream, "        *(uint16_t*)buf = (uint16_t) rand();")?;
                 },
             }
-            writeln!(stream, "            buf += 2; len -= 2;")?;
-            writeln!(stream, "        }}")?;
+            writeln!(stream, "        buf += 2; len -= 2;")?;
         },
         VariableType::I32(integer) |
         VariableType::U32(integer) => {
-            writeln!(stream, "        if (len >= 4) {{")?;
+            writeln!(stream, "        if (UNLIKELY(len < 4)) {{")?;
+            writeln!(stream, "            goto container_end;")?;
+            writeln!(stream, "        }}")?;
+            
             match integer {
                 IntegerValue::FromSet(id) => {
-                    writeln!(stream, "            *(uint32_t*)buf = (uint32_t) {}();", numberset_func(id))?;
+                    writeln!(stream, "        *(uint32_t*)buf = (uint32_t) {}();", numberset_func(id))?;
                 },
                 IntegerValue::Any => {
-                    writeln!(stream, "            *(uint32_t*)buf = (uint32_t) rand();")?;
+                    writeln!(stream, "        *(uint32_t*)buf = (uint32_t) rand();")?;
                 },
             }
-            writeln!(stream, "            buf += 4; len -= 4;")?;
-            writeln!(stream, "        }}")?;
+            writeln!(stream, "        buf += 4; len -= 4;")?;
         },
         VariableType::I64(integer) |
         VariableType::U64(integer) => {
-            writeln!(stream, "        if (len >= 8) {{")?;
+            writeln!(stream, "        if (UNLIKELY(len < 4)) {{")?;
+            writeln!(stream, "            goto container_end;")?;
+            writeln!(stream, "        }}")?;
+            
             match integer {
                 IntegerValue::FromSet(id) => {
-                    writeln!(stream, "            *(uint64_t*)buf = (uint64_t) {}();", numberset_func(id))?;
+                    writeln!(stream, "        *(uint64_t*)buf = (uint64_t) {}();", numberset_func(id))?;
                 },
                 IntegerValue::Any => {
-                    writeln!(stream, "            *(uint64_t*)buf = (uint64_t) rand();")?;
+                    writeln!(stream, "        *(uint64_t*)buf = (uint64_t) rand();")?;
                 },
             }
-            writeln!(stream, "            buf += 8; len -= 8;")?;
-            writeln!(stream, "        }}")?;
+            writeln!(stream, "        buf += 8; len -= 8;")?;
         },
         VariableType::String(bytearray) => {
             match bytearray {
                 BytearrayValue::Literal(id) => {
                     let var_name = string_var(id);
+                    writeln!(stream, "        if (UNLIKELY(len < sizeof({}))) {{", var_name)?;
+                    writeln!(stream, "            goto container_end;")?;
+                    writeln!(stream, "        }}")?;
+                    writeln!(stream, "        __builtin_memcpy_inline(buf, {0}, sizeof({0}));", var_name)?;
+                    writeln!(stream, "        buf += sizeof({0}); len -= sizeof({0});", var_name)?;
                 },
                 BytearrayValue::Any(id) => {
-                    
+                    writeln!(stream, "        uint32_t string_len = {}();", numberset_func(id))?;
+                    writeln!(stream, "        if (UNLIKELY(len < string_len)) {{")?;
+                    writeln!(stream, "            goto container_end;")?;
+                    writeln!(stream, "        }}")?;
+                    writeln!(stream, "        random_buffer(buf, string_len, MASK_STRING);")?;
+                    writeln!(stream, "        buf += string_len; len -= string_len;")?;
                 },
             }
         },
-        _ => {},
+        VariableType::Bytes(bytearray) => {
+            match bytearray {
+                BytearrayValue::Literal(id) => {
+                    let var_name = string_var(id);
+                    writeln!(stream, "        if (UNLIKELY(len < sizeof({}))) {{", var_name)?;
+                    writeln!(stream, "            goto container_end;")?;
+                    writeln!(stream, "        }}")?;
+                    writeln!(stream, "        __builtin_memcpy_inline(buf, {0}, sizeof({0}));", var_name)?;
+                    writeln!(stream, "        buf += sizeof({0}); len -= sizeof({0});", var_name)?;
+                },
+                BytearrayValue::Any(id) => {
+                    writeln!(stream, "        uint32_t bytes_len = {}();", numberset_func(id))?;
+                    writeln!(stream, "        if (UNLIKELY(len < bytes_len)) {{")?;
+                    writeln!(stream, "            goto container_end;")?;
+                    writeln!(stream, "        }}")?;
+                    writeln!(stream, "        random_buffer(buf, bytes_len, MASK_BYTES);")?;
+                    writeln!(stream, "        buf += bytes_len; len -= bytes_len;")?;
+                },
+            }
+        },
+        VariableType::Oneof(id) |
+        VariableType::ContainerRef(id) => {
+            writeln!(stream, "        size_t container_len = {}(buf, len);", container_func(id))?;
+            writeln!(stream, "        buf += container_len; len -= container_len;")?;
+        },
+        VariableType::ResolveContainerRef(_) => panic!("Encountered unresolved container reference"),
     }
     
     if variable.options().repeats().is_some() {
@@ -303,12 +385,31 @@ fn emit_variable<T: Write>(stream: &mut T, _grammar: &Grammar, _container: &Cont
     Ok(())
 }
 
-fn emit_oneof<T: Write>(_stream: &mut T, _grammar: &Grammar, _container: &Container, _view: &SourceView) -> Result<()> {
-    //TODO
+fn emit_oneof<T: Write>(stream: &mut T, container: &Container) -> Result<()> {
+    writeln!(stream, "static size_t {}(unsigned char* buf, size_t len) {{", container_func(&container.id()))?;
+    writeln!(stream, "    size_t original_len = len;")?;
+    writeln!(stream, "    switch(rand() % {}) {{", container.variables().len())?;
+    
+    for i in 0..container.variables().len() {
+        writeln!(stream, "        case {}: {{", i)?;
+        emit_variable(stream, &container.variables()[i])?;
+        writeln!(stream, "        break;")?;
+        writeln!(stream, "        }}")?;
+    }
+    
+    writeln!(stream, "        default: {{")?;
+    writeln!(stream, "            __builtin_unreachable();")?;
+    writeln!(stream, "        }}")?;
+    
+    writeln!(stream, "    }}")?;
+    
+    writeln!(stream, "  container_end:")?;
+    writeln!(stream, "    return original_len - len;")?;
+    writeln!(stream, "}}")?;
     Ok(())
 }
 
-fn emit_struct<T: Write>(stream: &mut T, grammar: &Grammar, container: &Container, view: &SourceView) -> Result<()> {
+fn emit_struct<T: Write>(stream: &mut T, container: &Container, view: &SourceView) -> Result<()> {
     writeln!(stream, "static size_t {}(unsigned char* buf, size_t len) {{", container_func(&container.id()))?;
     
     // Identifier comment
@@ -325,12 +426,12 @@ fn emit_struct<T: Write>(stream: &mut T, grammar: &Grammar, container: &Containe
     
     for var in container.variables() {
         writeln!(stream,"    {{")?;
-        emit_variable(stream, grammar, container, var)?;
+        emit_variable(stream, var)?;
         writeln!(stream,"    }}")?;
     }
     
+    writeln!(stream, "  container_end:")?;
     writeln!(stream, "    return original_len - len;")?;
-    
     writeln!(stream, "}}")?;
     Ok(())
 }
@@ -341,35 +442,85 @@ fn emit_containers<T: Write>(stream: &mut T, grammar: &Grammar, view: &SourceVie
     
     for container in grammar.containers() {
         match container.typ() {
-            ContainerType::Oneof => emit_oneof(stream, grammar, container, view)?,
-            ContainerType::Struct => emit_struct(stream, grammar, container, view)?,
+            ContainerType::Oneof => emit_oneof(stream, container)?,
+            ContainerType::Struct => emit_struct(stream, container, view)?,
         }
     }
     
     Ok(())
 }
 
-fn write_file<T: Write>(args: &Args, grammar: &Grammar, view: &SourceView, mut stream: T) -> Result<()> {
+fn emit_entrypoint<T: Write>(stream: &mut T, args: &Args, grammar: &Grammar) -> Result<()> {
+    write!(
+        stream,
+"
+// Entrypoint for the generator
+size_t {}generate(unsigned char* buf, size_t len) {{
+    if (UNLIKELY(!buf || !len)) {{
+        return 0;
+    }}
+    
+    return {}(buf, len);
+}}
+",
+        args.prefix,
+        container_func(grammar.root().unwrap()),
+    )?;
+    
+    Ok(())
+}
+
+fn write_source<T: Write>(args: &Args, grammar: &Grammar, view: &SourceView, mut stream: T) -> Result<()> {
     emit_header(&mut stream, args)?;
     emit_includes(&mut stream)?;
     emit_macros(&mut stream)?;
     emit_rng(&mut stream, args)?;
+    emit_helpers(&mut stream)?;
     emit_strings(&mut stream, grammar)?;
     emit_numbersets(&mut stream, grammar)?;
     emit_declarations(&mut stream, grammar)?;
     emit_containers(&mut stream, grammar, view)?;
+    emit_entrypoint(&mut stream, args, grammar)?;
     Ok(())
 }
 
-fn select_stream(args: &Args) -> Box<dyn Write> {
+fn write_header<T: Write>(args: &Args, mut stream: T) -> Result<()> {
+    write!(
+        &mut stream,
+"
+#ifndef __{0}GENERATOR_H
+#define __{0}GENERATOR_H
+
+size_t {0}generate(unsigned char* buf, size_t len);
+void {0}seed(size_t initial_seed);
+
+#endif /* __{0}GENERATOR_H */
+",
+        args.prefix
+    )?;
+    
+    Ok(())
+}
+
+fn c_stream(args: &Args) -> Box<dyn Write> {
     if args.outfile.as_str() == "-" {
         Box::new(stdout())
     } else {
-        Box::new(File::create(&args.outfile).expect("Could not create output file"))
+        Box::new(File::create(&args.outfile).expect("Could not create source file"))
+    }
+}
+
+fn h_stream(args: &Args) -> Box<dyn Write> {
+    if args.outfile.as_str() == "-" {
+        Box::new(stdout())
+    } else {
+        Box::new(File::create(format!("{}.h", args.outfile)).expect("Could not create header file"))
     }
 }
 
 pub fn compile_grammar(args: &Args, grammar: &Grammar, view: &SourceView) {
-    let outfile = select_stream(args);
-    write_file(args, grammar, view, outfile).expect("Could not write to outfile");
+    let outfile = c_stream(args);
+    write_source(args, grammar, view, outfile).expect("Could not write to source file");
+    let outfile = h_stream(args);
+    write_header(args, outfile).expect("Could not write to header file");
 }
