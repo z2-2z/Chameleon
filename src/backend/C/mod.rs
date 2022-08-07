@@ -194,29 +194,49 @@ fn numberset_c_type(typ: &NumbersetType) -> &str {
     }
 }
 
-fn emit_range_selection<T: Write, R: Display + Ord + Num + NumCast + Copy>(stream: &mut T, range: &Range<R>, c_type: &str, suffix: &str) -> Result<()> {
+fn emit_range_selection<T: Write, R: Display + Ord + Num + NumCast + Copy>(stream: &mut T, range: &Range<R>, c_type: &str, suffix: &str, scheduling: &Scheduling) -> Result<()> {
     if range.end == range.start {
-        write!(stream, "{}{}", range.start, suffix)?;
+        writeln!(stream, "            return {}{};", range.start, suffix)?;
     } else {
-        write!(stream, "((({}) rand()) % {}{}) + {}{}", c_type, range.end - range.start + R::from(1).unwrap(), suffix, range.start, suffix)?;
+        match scheduling {
+            Scheduling::RoundRobin => {
+                writeln!(stream, "            static THREAD_LOCAL uint64_t range_cursor = 0;")?;
+                writeln!(stream, "            uint64_t range_selector = range_cursor++;")?;
+            },
+            Scheduling::Random => {
+                writeln!(stream, "            uint64_t range_selector = rand();")?;
+            },
+        }
+        
+        writeln!(stream, "            return ((({}) range_selector) % {}{}) + {}{};", c_type, range.end - range.start + R::from(1).unwrap(), suffix, range.start, suffix)?;
     }
     
     Ok(())
 }
 
-fn emit_single_numberset<T: Write, R: Display + Ord + Num + NumCast + Copy>(stream: &mut T, numberset: &Numberset<R>, c_type: &str, suffix: &str) -> Result<()> {
+fn emit_single_numberset<T, R>(stream: &mut T, numberset: &Numberset<R>, c_type: &str, suffix: &str, scheduling: &Scheduling) -> Result<()>
+where
+    T: Write,
+    R: Display + Ord + Num + NumCast + Copy,
+{
     if numberset.len() == 1 {
-        write!(stream, "    return ")?;
-        emit_range_selection(stream, &numberset[0], c_type, suffix)?;
-        writeln!(stream, ";")?;
+        emit_range_selection(stream, &numberset[0], c_type, suffix, scheduling)?;
     } else {
-        writeln!(stream, "    switch(rand() % {}) {{", numberset.len())?;
+        match scheduling {
+            Scheduling::RoundRobin => {
+                writeln!(stream, "    static THREAD_LOCAL uint64_t numberset_cursor = 0;")?;
+                writeln!(stream, "    uint64_t numberset_selector = numberset_cursor++ % {};", numberset.len())?;
+            },
+            Scheduling::Random => {
+                writeln!(stream, "    uint64_t numberset_selector = rand() % {};", numberset.len())?;
+            },
+        }
+        
+        writeln!(stream, "    switch(numberset_selector) {{")?;
         
         for case in 0..numberset.len() {
             writeln!(stream, "        case {}: {{", case)?;
-            write!(stream, "            return ")?;
-            emit_range_selection(stream, &numberset[case], c_type, suffix)?;
-            writeln!(stream, ";")?;
+            emit_range_selection(stream, &numberset[case], c_type, suffix, scheduling)?;
             writeln!(stream, "        }}")?;
         }
         
@@ -235,19 +255,21 @@ fn emit_numbersets<T: Write>(stream: &mut T, grammar: &Grammar) -> Result<()> {
         writeln!(stream, "")?;
         writeln!(stream, "// Numbersets from grammar")?;
         
+        let scheduling = grammar.options().scheduling();
+        
         for (id, numberset) in grammar.numbersets().iter() {
             let c_type = numberset_c_type(numberset);
             writeln!(stream, "static {} {}() {{", c_type, numberset_func(id))?;
             
             match numberset {
-                NumbersetType::U8(numberset) => emit_single_numberset(stream, numberset, c_type, "U")?,
-                NumbersetType::I8(numberset) => emit_single_numberset(stream, numberset, c_type, "")?,
-                NumbersetType::U16(numberset) => emit_single_numberset(stream, numberset, c_type, "U")?,
-                NumbersetType::I16(numberset) => emit_single_numberset(stream, numberset, c_type, "")?,
-                NumbersetType::U32(numberset) => emit_single_numberset(stream, numberset, c_type, "U")?,
-                NumbersetType::I32(numberset) => emit_single_numberset(stream, numberset, c_type, "")?,
-                NumbersetType::U64(numberset) => emit_single_numberset(stream, numberset, c_type, "UL")?,
-                NumbersetType::I64(numberset) => emit_single_numberset(stream, numberset, c_type, "L")?,
+                NumbersetType::U8(numberset) => emit_single_numberset(stream, numberset, c_type, "U", scheduling)?,
+                NumbersetType::I8(numberset) => emit_single_numberset(stream, numberset, c_type, "", scheduling)?,
+                NumbersetType::U16(numberset) => emit_single_numberset(stream, numberset, c_type, "U", scheduling)?,
+                NumbersetType::I16(numberset) => emit_single_numberset(stream, numberset, c_type, "", scheduling)?,
+                NumbersetType::U32(numberset) => emit_single_numberset(stream, numberset, c_type, "U", scheduling)?,
+                NumbersetType::I32(numberset) => emit_single_numberset(stream, numberset, c_type, "", scheduling)?,
+                NumbersetType::U64(numberset) => emit_single_numberset(stream, numberset, c_type, "UL", scheduling)?,
+                NumbersetType::I64(numberset) => emit_single_numberset(stream, numberset, c_type, "L", scheduling)?,
             }
             
             writeln!(stream, "}}")?;

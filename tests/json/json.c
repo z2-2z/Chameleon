@@ -102,15 +102,23 @@ static const unsigned char string_8179814853952207734[4] = {0x74, 0x72, 0x75, 0x
 
 // Numbersets from grammar
 static uint8_t numberset_304032344720464445() {
-    switch(rand() % 3) {
+    static THREAD_LOCAL uint64_t numberset_cursor = 0;
+    uint64_t numberset_selector = numberset_cursor++ % 3;
+    switch(numberset_selector) {
         case 0: {
-            return (((uint8_t) rand()) % 2U) + 32U;
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint8_t) range_selector) % 2U) + 32U;
         }
         case 1: {
-            return (((uint8_t) rand()) % 57U) + 35U;
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint8_t) range_selector) % 57U) + 35U;
         }
         case 2: {
-            return (((uint8_t) rand()) % 35U) + 93U;
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint8_t) range_selector) % 35U) + 93U;
         }
         default: {
             __builtin_unreachable();
@@ -118,22 +126,24 @@ static uint8_t numberset_304032344720464445() {
     }
 }
 static uint8_t numberset_535708458095750977() {
-    return 45U;
+            return 45U;
 }
 static uint8_t numberset_570823944604184829() {
-    return 125U;
+            return 125U;
 }
 static uint8_t numberset_831432947624321420() {
-    return 92U;
+            return 92U;
 }
 static uint32_t numberset_2742457571863202324() {
-    return 4U;
+            return 4U;
 }
 static uint8_t numberset_2974950330330226270() {
-    return 91U;
+            return 91U;
 }
 static uint8_t numberset_3037289215760968923() {
-    switch(rand() % 2) {
+    static THREAD_LOCAL uint64_t numberset_cursor = 0;
+    uint64_t numberset_selector = numberset_cursor++ % 2;
+    switch(numberset_selector) {
         case 0: {
             return 43U;
         }
@@ -146,16 +156,20 @@ static uint8_t numberset_3037289215760968923() {
     }
 }
 static uint8_t numberset_3647269789286519387() {
-    return 34U;
+            return 34U;
 }
 static uint32_t numberset_4390414140689988514() {
-    return (((uint32_t) rand()) % 13U) + 0U;
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint32_t) range_selector) % 13U) + 0U;
 }
 static uint8_t numberset_4625647195457032579() {
-    return 44U;
+            return 44U;
 }
 static uint8_t numberset_6484256901419378940() {
-    switch(rand() % 2) {
+    static THREAD_LOCAL uint64_t numberset_cursor = 0;
+    uint64_t numberset_selector = numberset_cursor++ % 2;
+    switch(numberset_selector) {
         case 0: {
             return 69U;
         }
@@ -168,15 +182,23 @@ static uint8_t numberset_6484256901419378940() {
     }
 }
 static uint8_t numberset_6579617425334308193() {
-    switch(rand() % 3) {
+    static THREAD_LOCAL uint64_t numberset_cursor = 0;
+    uint64_t numberset_selector = numberset_cursor++ % 3;
+    switch(numberset_selector) {
         case 0: {
-            return (((uint8_t) rand()) % 10U) + 48U;
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint8_t) range_selector) % 10U) + 48U;
         }
         case 1: {
-            return (((uint8_t) rand()) % 6U) + 65U;
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint8_t) range_selector) % 6U) + 65U;
         }
         case 2: {
-            return (((uint8_t) rand()) % 6U) + 97U;
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint8_t) range_selector) % 6U) + 97U;
         }
         default: {
             __builtin_unreachable();
@@ -184,37 +206,49 @@ static uint8_t numberset_6579617425334308193() {
     }
 }
 static uint8_t numberset_10366812475632120030() {
-    return 123U;
+            return 123U;
 }
 static uint8_t numberset_11185474807884195476() {
-    return (((uint8_t) rand()) % 10U) + 48U;
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint8_t) range_selector) % 10U) + 48U;
 }
 static uint32_t numberset_11507316992910836708() {
-    return (((uint32_t) rand()) % 20U) + 1U;
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint32_t) range_selector) % 20U) + 1U;
 }
 static uint32_t numberset_12420855493989175532() {
-    return (((uint32_t) rand()) % 17U) + 0U;
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint32_t) range_selector) % 17U) + 0U;
 }
 static uint8_t numberset_13374493992030014863() {
-    return 46U;
+            return 46U;
 }
 static uint8_t numberset_15518408013711948167() {
-    return 93U;
+            return 93U;
 }
 static uint8_t numberset_16481366060854711735() {
-    return 58U;
+            return 58U;
 }
 static uint8_t numberset_16687042391787592567() {
-    return (((uint8_t) rand()) % 9U) + 49U;
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint8_t) range_selector) % 9U) + 49U;
 }
 static uint8_t numberset_16691176133774852529() {
-    return 48U;
+            return 48U;
 }
 static uint32_t numberset_16876133892018511142() {
-    return (((uint32_t) rand()) % 20U) + 0U;
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint32_t) range_selector) % 20U) + 0U;
 }
 static uint8_t numberset_17129939822146248260() {
-    switch(rand() % 8) {
+    static THREAD_LOCAL uint64_t numberset_cursor = 0;
+    uint64_t numberset_selector = numberset_cursor++ % 8;
+    switch(numberset_selector) {
         case 0: {
             return 34U;
         }
@@ -245,7 +279,7 @@ static uint8_t numberset_17129939822146248260() {
     }
 }
 static uint8_t numberset_18117484783764985230() {
-    return 117U;
+            return 117U;
 }
 
 // Forward declarations of containers
