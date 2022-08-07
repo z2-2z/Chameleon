@@ -20,23 +20,26 @@ _.-''{    { ; ; ,', '  :
 
 -----------------------------------------------------------
 
-This file is a reference grammar that explains the syntax of a
-grammar file.
+This file demonstrates everything that is legal with Chameleon.
 */
 
-/* This is a comment.
-   /* Nested comments are also possible */
+/* 
+    Simple comment.
+    /* Nested comment. */
 */
 
-/* TODO: explanations */
-
+/* All possible options */
 option endianness = little;
 option endianness = big;
 option endianness = native;
 option scheduling = round-robin;
 option scheduling = random;
 
+/* Demonstrates the use of number types */
 struct NumberTypes {
+    char: char;
+    char: char = 'A', 'B';
+
     byte: u8;
     byte: u8 = 'A', 0xF, 0o7, 0b101;
     byte: i8 = -128..127;
@@ -51,20 +54,22 @@ struct NumberTypes {
     qword: i64 = -9223372036854775808..0x7FFFFFFFFFFFFFFF;
 }
 
-struct BytearrayTypes {
+/* Demonstrates the use of string types */
+struct StringTypes {
     string: string = "Hello World!";
     string: string = 8..16;
     string: string = "\\ \" \0 \a \b \t \n \v \f \r";
     
     bytes: bytes = "Hello World!";
     bytes: bytes = "\\ \" \0 \a \b \t \n \v \f \r \xFF";
-    string: string = 8..16;
+    bytes: bytes = 8..16;
 }
 
+/* Demonstrates the use of oneofs */
 struct OneofTypes {
     selection: oneof {
-        opt_1: NumberTypes;
-        opt_2: BytearrayTypes;
+        opt_1: u8;
+        opt_2: u8;
         nested_oneof: oneof {
             opt_3: u8;
             opt_4: u8;
@@ -72,36 +77,44 @@ struct OneofTypes {
     };
 }
 
+/* Demonstrates the use of local options */
 struct LocalOptions {
     option endianness = big;
     option scheduling = random;
     
     swapped: u16 = 0x1337;
     random: u8;
-    
-    sublocal_options: oneof {
+    local_options: oneof {
         option scheduling = round-robin;
         
         opt_1: u8;
         opt_2: u8;
     };
+    local_options: struct {
+        option scheduling = round-robin;
+
+        opt_3: u8;
+    };
 }
 
+/* Demonstrates the use of variable flags */
 struct VariableFlags {
     optional       _: u8;
     repeats 50     _: u8;
     optional repeats 1..100 _: u8;
 }
 
+/* Demonstrates the use of anonymous structs */
 struct AnonymousStructs {
     anon: struct {
         _: u8;
     };
 }
 
+/* Demonstrates the use of the entrypoint */
 struct Root {
     _: NumberTypes;
-    _: BytearrayTypes;
+    _: StringTypes;
     _: OneofTypes;
     _: LocalOptions;
     _: VariableFlags;
