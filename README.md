@@ -1,4 +1,4 @@
-# Chameleon
+# Chameleon (beta)
 
 Chameleon is a grammar-based generator for fuzzing.
 
@@ -214,9 +214,25 @@ This works because local options never affect numbersets due to implementation d
 So in this case we will still get the desired order for the oneof: `var1`, `var2`, etc.
 but the values of the variables will be randomly chosen.
 
-### Semantical structure
-The generator needs to know where to start with generation so there must exist a struct
-with name `Root` which is the starting point for the generator.
+### Entrypoint
+There must exist a struct with name `Root` which is the starting point for the generator.
 
+## Usage
+TODO: table of options
 
+## API
+Once you have obtained a .c file you have access to the functions
+- `void seed(size_t initial_seed)`: Seeds the internal PRNG
+- `size_t generate(unsigned char* buf, size_t len)`: Construct an input and write 
+  into the buffer specified by `buf` and `len` and return how many bytes were written
+
+You can use the macros
+- `MULTITHREADING`: Define this to mark every global variable as thread-local to make the generator thread-safe (off by default)
+- `SEED=<N>`: Compile-time seed that is used when `seed()` is not called
+- `DISABLE_rand`: Don't use the internal helper method `uint64_t rand()`. Can be used to implement a custom PRNG implementation.
+- `DISABLE_random_buffer`: Don't use the internal helper method `void random_buffer (unsigned char* buf, uint32_t len, uint64_t mask)` that fills a given buffer
+   with random data. Can be used to implement a custom implementation of the function.
+
+## Examples
+Have at look at some [examples](./grammars) to get started.
 
