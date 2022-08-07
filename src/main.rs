@@ -13,8 +13,11 @@ pub struct Args {
     #[clap(long, action, default_value_t = false)]
     allow_cycles: bool,
     
+    #[clap(long, action, default_value_t = false)]
+    bench: bool,
+    
     #[clap(short = 'o', value_parser)]
-    outfile: String,
+    outfile: Option<String>,
     
     #[clap(long, value_parser, default_value = "")]
     prefix: String,
@@ -404,6 +407,81 @@ fn print_stats(grammar: &grammar::Grammar) {
     }
 }
 
+fn run_benchmark() {
+    let mut file = std::fs::File::create("/tmp/chm-bench.c").expect("Could not create benchmark file");
+    
+    write!(
+        &mut file,
+"
+#include <stdio.h>
+#include <stddef.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <time.h>
+
+#include \"chm-generator.c.h\"
+
+unsigned char buffer[1024 * 1024 * 1024];
+volatile size_t generated = 0;
+volatile size_t iterations = 0;
+
+__attribute__((noreturn))
+void* generator_thread (void* _arg) {{
+    for (;;) {{
+        size_t g = generate(buffer, sizeof(buffer));
+        __atomic_add_fetch(&generated, g, __ATOMIC_SEQ_CST);
+        __atomic_add_fetch(&iterations, 1, __ATOMIC_SEQ_CST);
+    }}
+}}
+
+int main (void) {{
+    pthread_t thread = 0;
+    if (pthread_create(&thread, NULL, generator_thread, NULL) != 0) {{
+        return 1;
+    }}
+    
+    struct timespec start;
+    if (clock_gettime(CLOCK_MONOTONIC, &start) != 0) {{
+        return 1;
+    }}
+    
+    for (;;) {{
+        sleep(1);
+        
+        struct timespec now;
+        if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {{
+            return 1;
+        }}
+        
+        size_t g = __atomic_load_n(&generated, __ATOMIC_SEQ_CST);
+        size_t i = __atomic_load_n(&iterations, __ATOMIC_SEQ_CST);
+        
+        double elapsed = (double)(now.tv_sec - start.tv_sec);
+        double bytes_per_sec = (double) g / elapsed;
+        printf(\"%.4lf MiB/sec (mean size: %lu)\\n\", bytes_per_sec / 1024.0 / 1024.0, g / i);
+    }}
+}}
+"
+    ).expect("Could not write to benchmark file");
+    
+    let status = std::process::Command::new("gcc")
+        .arg("-o")
+        .arg("/tmp/chm-bench")
+        .arg("-O3")
+        .arg("-flto")
+        .arg("/tmp/chm-bench.c")
+        .arg("/tmp/chm-generator.c")
+        .spawn()
+        .expect("Could not launch gcc")
+        .wait()
+        .unwrap();
+    assert!(status.success(), "gcc returned error");
+    let _ = std::process::Command::new("/tmp/chm-bench")
+        .spawn()
+        .expect("Could not launch benchmark")
+        .wait();
+}
+
 fn main() {
     let mut args = Args::parse();
     
@@ -438,5 +516,13 @@ fn main() {
     
     verify_grammar(&view, &grammar, &args);
     
-    backend::default::compile_grammar(&args, &grammar, &view);
+    if args.outfile.is_some() {
+        backend::default::compile_grammar(&args, &grammar, &view);
+    } else if args.bench {
+        args.outfile = Some("/tmp/chm-generator.c".to_string());
+        backend::default::compile_grammar(&args, &grammar, &view);
+        run_benchmark();
+    } else {
+        let _ = warning("No action specified. Doing nothing.");
+    }
 }

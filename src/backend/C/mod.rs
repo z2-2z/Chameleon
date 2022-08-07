@@ -622,18 +622,18 @@ void {0}seed(size_t initial_seed);
 }
 
 fn c_stream(args: &Args) -> Box<dyn Write> {
-    if args.outfile.as_str() == "-" {
+    if args.outfile.as_ref().unwrap().as_str() == "-" {
         Box::new(stdout())
     } else {
-        Box::new(File::create(&args.outfile).expect("Could not create source file"))
+        Box::new(File::create(&args.outfile.as_ref().unwrap()).expect("Could not create source file"))
     }
 }
 
 fn h_stream(args: &Args) -> Box<dyn Write> {
-    if args.outfile.as_str() == "-" {
+    if args.outfile.as_ref().unwrap().as_str() == "-" {
         Box::new(stdout())
     } else {
-        Box::new(File::create(format!("{}.h", args.outfile)).expect("Could not create header file"))
+        Box::new(File::create(format!("{}.h", args.outfile.as_ref().unwrap())).expect("Could not create header file"))
     }
 }
 
