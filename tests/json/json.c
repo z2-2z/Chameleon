@@ -158,18 +158,8 @@ static uint8_t numberset_3037289215760968923() {
 static uint8_t numberset_3647269789286519387() {
             return 34U;
 }
-static uint32_t numberset_4390414140689988514() {
-            static THREAD_LOCAL uint64_t range_cursor = 0;
-            uint64_t range_selector = range_cursor++;
-            return (((uint32_t) range_selector) % 13U) + 0U;
-}
 static uint8_t numberset_4625647195457032579() {
             return 44U;
-}
-static uint32_t numberset_6044686946690327109() {
-            static THREAD_LOCAL uint64_t range_cursor = 0;
-            uint64_t range_selector = range_cursor++;
-            return (((uint32_t) range_selector) % 12U) + 0U;
 }
 static uint8_t numberset_6484256901419378940() {
     static THREAD_LOCAL uint64_t numberset_cursor = 0;
@@ -209,6 +199,11 @@ static uint8_t numberset_6579617425334308193() {
             __builtin_unreachable();
         }
     }
+}
+static uint32_t numberset_8885837958780172474() {
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint32_t) range_selector) % 9U) + 0U;
 }
 static uint8_t numberset_10366812475632120030() {
             return 123U;
@@ -502,7 +497,7 @@ static size_t container_9(unsigned char* buf, size_t len) {
     // This container is the anonymous struct in line 35 column 5
     size_t original_len = len;
     {
-        uint32_t repeats_i = numberset_6044686946690327109();
+        uint32_t repeats_i = numberset_8885837958780172474();
         while (repeats_i--) {
         size_t container_len = container_10(buf, len);
         buf += container_len; len -= container_len;
@@ -562,7 +557,7 @@ static size_t container_12(unsigned char* buf, size_t len) {
     // This container is the anonymous struct in line 47 column 5
     size_t original_len = len;
     {
-        uint32_t repeats_i = numberset_4390414140689988514();
+        uint32_t repeats_i = numberset_8885837958780172474();
         while (repeats_i--) {
         size_t container_len = container_13(buf, len);
         buf += container_len; len -= container_len;
