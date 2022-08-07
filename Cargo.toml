@@ -5,7 +5,7 @@ edition = "2021"
 
 [profile.release]
 lto = true
-codegen-unis = 1
+codegen-units = 1
 debug = true
 panic = "abort"
 
