@@ -80,13 +80,17 @@ struct Number {
 
 struct Value {
     value: oneof {
+        option scheduling = random;
+    
         object: Object;
         array: Array;
         string: String;
         number: Number;
-        true: string = "true";
-        false: string = "false";
-        null: string = "null";
+        literal: oneof {
+            true: string = "true";
+            false: string = "false";
+            null: string = "null";
+        };
     };
 }
 

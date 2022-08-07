@@ -311,6 +311,7 @@ static size_t container_19(unsigned char*, size_t);
 static size_t container_20(unsigned char*, size_t);
 static size_t container_21(unsigned char*, size_t);
 static size_t container_22(unsigned char*, size_t);
+static size_t container_23(unsigned char*, size_t);
 
 // Definition of containers
 static size_t container_0(unsigned char* buf, size_t len) {
@@ -745,8 +746,7 @@ static size_t container_20(unsigned char* buf, size_t len) {
 }
 static size_t container_21(unsigned char* buf, size_t len) {
     size_t original_len = len;
-    static THREAD_LOCAL uint64_t oneof_cursor = 0;
-    uint64_t oneof_selector = oneof_cursor++ % 7;
+    uint64_t oneof_selector = rand() % 5;
     switch(oneof_selector) {
         case 0: {
         size_t container_len = container_8(buf, len);
@@ -769,6 +769,22 @@ static size_t container_21(unsigned char* buf, size_t len) {
         break;
         }
         case 4: {
+        size_t container_len = container_22(buf, len);
+        buf += container_len; len -= container_len;
+        break;
+        }
+        default: {
+            __builtin_unreachable();
+        }
+    }
+    return original_len - len;
+}
+static size_t container_22(unsigned char* buf, size_t len) {
+    size_t original_len = len;
+    static THREAD_LOCAL uint64_t oneof_cursor = 0;
+    uint64_t oneof_selector = oneof_cursor++ % 3;
+    switch(oneof_selector) {
+        case 0: {
         if (UNLIKELY(len < sizeof(string_8179814853952207734))) {
             goto container_end;
         }
@@ -776,7 +792,7 @@ static size_t container_21(unsigned char* buf, size_t len) {
         buf += sizeof(string_8179814853952207734); len -= sizeof(string_8179814853952207734);
         break;
         }
-        case 5: {
+        case 1: {
         if (UNLIKELY(len < sizeof(string_3946110457539242724))) {
             goto container_end;
         }
@@ -784,7 +800,7 @@ static size_t container_21(unsigned char* buf, size_t len) {
         buf += sizeof(string_3946110457539242724); len -= sizeof(string_3946110457539242724);
         break;
         }
-        case 6: {
+        case 2: {
         if (UNLIKELY(len < sizeof(string_6895804349017018507))) {
             goto container_end;
         }
@@ -799,7 +815,7 @@ static size_t container_21(unsigned char* buf, size_t len) {
   container_end:
     return original_len - len;
 }
-static size_t container_22(unsigned char* buf, size_t len) {
+static size_t container_23(unsigned char* buf, size_t len) {
     // This container is struct Root
     size_t original_len = len;
     {
@@ -815,5 +831,5 @@ size_t generate(unsigned char* buf, size_t len) {
         return 0;
     }
     
-    return container_22(buf, len);
+    return container_23(buf, len);
 }

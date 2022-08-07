@@ -8,11 +8,11 @@
 
 int main (int argc, char** argv) {
     if (argc < 2) {
-        printf("Usage: %s {gen | bench}\n", argv[0]);
+        printf("Usage: %s {gen [skip] | bench}\n", argv[0]);
         return 1;
     }
     
-    size_t len = 1024 * 1024 * 1024;
+    size_t len = 1024 * 1024;
     unsigned char* buf = malloc(len);
     
     if (!buf) {
@@ -21,6 +21,20 @@ int main (int argc, char** argv) {
     
     if (strcmp(argv[1], "gen") == 0) {
         seed(time(NULL) + (long) argv);
+        
+        int skip = 0;
+        
+        if (argc >= 3) {
+            skip = atoi(argv[2]);
+        }
+        
+        for (int i = 0; i < skip; ++i) {
+            size_t gen_len = generate(buf, len);
+            if (gen_len == 0) {
+                return 1;
+            }
+        }
+        
         size_t gen_len = generate(buf, len);
         if (gen_len == 0) {
             return 1;
