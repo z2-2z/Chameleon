@@ -87,6 +87,7 @@ fn emit_rng<T: Write>(stream: &mut T, args: &Args) -> Result<()> {
 // RNG: xorshift64
 static THREAD_LOCAL uint64_t rand_state = SEED;
 
+#ifndef DISABLE_rand
 static uint64_t rand() {{
     uint64_t x = rand_state;
     x ^= x << 13;
@@ -94,14 +95,21 @@ static uint64_t rand() {{
     x ^= x << 17;
     return rand_state = x;
 }}
+#else
+uint64_t rand();
+#endif
 
-void {}seed(size_t s) {{
+#ifndef DISABLE_seed
+void {0}seed(size_t s) {{
     if (s) {{
         rand_state = (uint64_t) s;
     }} else {{
         rand_state = SEED;
     }}
 }}
+#else
+void {0}seed(size_t);
+#endif
 ",
         &args.prefix,
     )?;
