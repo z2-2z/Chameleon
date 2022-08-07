@@ -33,7 +33,7 @@ struct Member {
 struct Object {
     _: char = '{';
     optional members: struct {
-        repeats 0..12 _: struct {
+        repeats 0..11 _: struct {
             member: Member;
             comma: char = ',';
         };

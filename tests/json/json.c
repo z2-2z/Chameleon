@@ -166,6 +166,11 @@ static uint32_t numberset_4390414140689988514() {
 static uint8_t numberset_4625647195457032579() {
             return 44U;
 }
+static uint32_t numberset_6044686946690327109() {
+            static THREAD_LOCAL uint64_t range_cursor = 0;
+            uint64_t range_selector = range_cursor++;
+            return (((uint32_t) range_selector) % 12U) + 0U;
+}
 static uint8_t numberset_6484256901419378940() {
     static THREAD_LOCAL uint64_t numberset_cursor = 0;
     uint64_t numberset_selector = numberset_cursor++ % 2;
@@ -476,7 +481,8 @@ static size_t container_8(unsigned char* buf, size_t len) {
         buf += 1; len -= 1;
     }
     {
-        if (rand() & 1) {
+        static THREAD_LOCAL uint64_t optional_counter = 0;
+        if (optional_counter++ & 1) {
         size_t container_len = container_9(buf, len);
         buf += container_len; len -= container_len;
         }
@@ -495,7 +501,7 @@ static size_t container_9(unsigned char* buf, size_t len) {
     // This container is the anonymous struct in line 35 column 5
     size_t original_len = len;
     {
-        uint32_t repeats_i = numberset_4390414140689988514();
+        uint32_t repeats_i = numberset_6044686946690327109();
         while (repeats_i--) {
         size_t container_len = container_10(buf, len);
         buf += container_len; len -= container_len;
@@ -535,7 +541,8 @@ static size_t container_11(unsigned char* buf, size_t len) {
         buf += 1; len -= 1;
     }
     {
-        if (rand() & 1) {
+        static THREAD_LOCAL uint64_t optional_counter = 0;
+        if (optional_counter++ & 1) {
         size_t container_len = container_12(buf, len);
         buf += container_len; len -= container_len;
         }
@@ -644,7 +651,8 @@ static size_t container_17(unsigned char* buf, size_t len) {
     // This container is struct Number
     size_t original_len = len;
     {
-        if (rand() & 1) {
+        static THREAD_LOCAL uint64_t optional_counter = 0;
+        if (optional_counter++ & 1) {
         if (UNLIKELY(len < 1)) {
             goto container_end;
         }
@@ -657,13 +665,15 @@ static size_t container_17(unsigned char* buf, size_t len) {
         buf += container_len; len -= container_len;
     }
     {
-        if (rand() & 1) {
+        static THREAD_LOCAL uint64_t optional_counter = 0;
+        if (optional_counter++ & 1) {
         size_t container_len = container_18(buf, len);
         buf += container_len; len -= container_len;
         }
     }
     {
-        if (rand() & 1) {
+        static THREAD_LOCAL uint64_t optional_counter = 0;
+        if (optional_counter++ & 1) {
         size_t container_len = container_19(buf, len);
         buf += container_len; len -= container_len;
         }
