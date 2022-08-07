@@ -5,7 +5,7 @@ use crate::{
         Grammar, StringId, NumbersetId, NumbersetType,
         Numberset, ContainerId, Container, ContainerType,
         Variable, VariableType, IntegerValue, BytearrayValue,
-        Scheduling, HasOptions,
+        Scheduling, HasOptions, Endianness,
     },
 };
 use std::io::{Write, Result, stdout};
@@ -39,6 +39,7 @@ fn emit_includes<T: Write>(stream: &mut T) -> Result<()> {
 "
 #include <stddef.h>
 #include <stdint.h>
+#include <endian.h>
 "
     )?;
     Ok(())
@@ -66,6 +67,14 @@ fn emit_macros<T: Write>(stream: &mut T) -> Result<()> {
 #ifndef SEED
 #define SEED 0x35c6be9ba2548264
 #endif
+
+// Define endianness helper functions
+#define LITTLE_ENDIAN_16(x) htole16((uint16_t) (x))
+#define BIG_ENDIAN_16(x)    htobe16((uint16_t) (x))
+#define LITTLE_ENDIAN_32(x) htole32((uint32_t) (x))
+#define BIG_ENDIAN_32(x)    htobe32((uint32_t) (x))
+#define LITTLE_ENDIAN_64(x) htole64((uint64_t) (x))
+#define BIG_ENDIAN_64(x)    htobe64((uint64_t) (x))
 "
     )?;
     Ok(())
@@ -255,7 +264,7 @@ fn emit_declarations<T: Write>(stream: &mut T, grammar: &Grammar) -> Result<()> 
     Ok(())
 }
 
-fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<bool> {
+fn emit_variable<T: Write>(stream: &mut T, variable: &Variable, endianness: &Endianness) -> Result<bool> {
     let mut label_ref = false;
     
     if variable.options().optional() {
@@ -267,7 +276,6 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<bool> 
         writeln!(stream, "        while (repeats_i--) {{")?;
     }
     
-    //TODO: endianness
     match variable.typ() {
         VariableType::I8(integer) |
         VariableType::U8(integer) => {
@@ -295,12 +303,25 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<bool> 
             
             match integer {
                 IntegerValue::FromSet(id) => {
-                    writeln!(stream, "        *(uint16_t*)buf = (uint16_t) {}();", numberset_func(id))?;
+                    writeln!(stream, "        uint16_t integer = (uint16_t) {}();", numberset_func(id))?;
                 },
                 IntegerValue::Any => {
-                    writeln!(stream, "        *(uint16_t*)buf = (uint16_t) rand();")?;
+                    writeln!(stream, "        uint16_t integer = (uint16_t) rand();")?;
                 },
             }
+            
+            match endianness {
+                Endianness::Little => {
+                    writeln!(stream, "        *(uint16_t*)buf = LITTLE_ENDIAN_16(integer);", )?;
+                },
+                Endianness::Big => {
+                    writeln!(stream, "        *(uint16_t*)buf = BIG_ENDIAN_16(integer);", )?;
+                },
+                Endianness::Native => {
+                    writeln!(stream, "        *(uint16_t*)buf = integer;", )?;
+                },
+            }
+            
             writeln!(stream, "        buf += 2; len -= 2;")?;
         },
         VariableType::I32(integer) |
@@ -312,12 +333,25 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<bool> 
             
             match integer {
                 IntegerValue::FromSet(id) => {
-                    writeln!(stream, "        *(uint32_t*)buf = (uint32_t) {}();", numberset_func(id))?;
+                    writeln!(stream, "        uint32_t integer = (uint32_t) {}();", numberset_func(id))?;
                 },
                 IntegerValue::Any => {
-                    writeln!(stream, "        *(uint32_t*)buf = (uint32_t) rand();")?;
+                    writeln!(stream, "        uint32_t integer = (uint32_t) rand();")?;
                 },
             }
+            
+            match endianness {
+                Endianness::Little => {
+                    writeln!(stream, "        *(uint32_t*)buf = LITTLE_ENDIAN_32(integer);", )?;
+                },
+                Endianness::Big => {
+                    writeln!(stream, "        *(uint32_t*)buf = BIG_ENDIAN_32(integer);", )?;
+                },
+                Endianness::Native => {
+                    writeln!(stream, "        *(uint32_t*)buf = integer;", )?;
+                },
+            }
+            
             writeln!(stream, "        buf += 4; len -= 4;")?;
         },
         VariableType::I64(integer) |
@@ -329,12 +363,25 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable) -> Result<bool> 
             
             match integer {
                 IntegerValue::FromSet(id) => {
-                    writeln!(stream, "        *(uint64_t*)buf = (uint64_t) {}();", numberset_func(id))?;
+                    writeln!(stream, "        uint64_t integer = (uint64_t) {}();", numberset_func(id))?;
                 },
                 IntegerValue::Any => {
-                    writeln!(stream, "        *(uint64_t*)buf = (uint64_t) rand();")?;
+                    writeln!(stream, "        uint64_t integer = (uint64_t) rand();")?;
                 },
             }
+            
+            match endianness {
+                Endianness::Little => {
+                    writeln!(stream, "        *(uint64_t*)buf = LITTLE_ENDIAN_64(integer);", )?;
+                },
+                Endianness::Big => {
+                    writeln!(stream, "        *(uint64_t*)buf = BIG_ENDIAN_64(integer);", )?;
+                },
+                Endianness::Native => {
+                    writeln!(stream, "        *(uint64_t*)buf = integer;", )?;
+                },
+            }
+            
             writeln!(stream, "        buf += 8; len -= 8;")?;
         },
         VariableType::String(bytearray) => {
@@ -418,7 +465,7 @@ fn emit_oneof<T: Write>(stream: &mut T, container: &Container) -> Result<()> {
     
     for i in 0..container.variables().len() {
         writeln!(stream, "        case {}: {{", i)?;
-        label_ref |= emit_variable(stream, &container.variables()[i])?;
+        label_ref |= emit_variable(stream, &container.variables()[i], container.options().endianness())?;
         writeln!(stream, "        break;")?;
         writeln!(stream, "        }}")?;
     }
@@ -456,7 +503,7 @@ fn emit_struct<T: Write>(stream: &mut T, container: &Container, view: &SourceVie
     
     for var in container.variables() {
         writeln!(stream,"    {{")?;
-        label_ref |= emit_variable(stream, var)?;
+        label_ref |= emit_variable(stream, var, container.options().endianness())?;
         writeln!(stream,"    }}")?;
     }
     

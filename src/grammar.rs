@@ -64,6 +64,10 @@ impl ContainerOptions {
     pub fn scheduling(&self) -> &Scheduling {
         &self.scheduling
     }
+    
+    pub fn endianness(&self) -> &Endianness {
+        &self.endianness
+    }
 }
 
 pub trait HasOptions {
