@@ -10,9 +10,10 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <endian.h>
 
-#define UNLIKELY(x) __builtin_expect((x), 0)
-#define LIKELY(x) __builtin_expect((x), 1)
+#define UNLIKELY(x) __builtin_expect(!!(x), 0)
+#define LIKELY(x) __builtin_expect(!!(x), 1)
 
 #ifndef __clang__
 #define __builtin_memcpy_inline __builtin_memcpy
@@ -30,9 +31,18 @@
 #define SEED 0x35c6be9ba2548264
 #endif
 
+// Define endianness helper functions
+#define LITTLE_ENDIAN_16(x) htole16((uint16_t) (x))
+#define BIG_ENDIAN_16(x)    htobe16((uint16_t) (x))
+#define LITTLE_ENDIAN_32(x) htole32((uint32_t) (x))
+#define BIG_ENDIAN_32(x)    htobe32((uint32_t) (x))
+#define LITTLE_ENDIAN_64(x) htole64((uint64_t) (x))
+#define BIG_ENDIAN_64(x)    htobe64((uint64_t) (x))
+
 // RNG: xorshift64
 static THREAD_LOCAL uint64_t rand_state = SEED;
 
+#ifndef DISABLE_rand
 static uint64_t rand() {
     uint64_t x = rand_state;
     x ^= x << 13;
@@ -40,7 +50,11 @@ static uint64_t rand() {
     x ^= x << 17;
     return rand_state = x;
 }
+#else
+uint64_t rand();
+#endif
 
+#ifndef DISABLE_seed
 void seed(size_t s) {
     if (s) {
         rand_state = (uint64_t) s;
@@ -48,6 +62,9 @@ void seed(size_t s) {
         rand_state = SEED;
     }
 }
+#else
+void seed(size_t);
+#endif
 
 // Helper method that writes random data into a buffer
 #define MASK_BYTES 0xFFFFFFFFFFFFFFFFUL
@@ -79,9 +96,9 @@ void random_buffer (unsigned char* buf, uint32_t len, uint64_t mask);
 #endif
 
 // Strings from grammar
-static unsigned char string_3946110457539242724[5] = {0x66, 0x61, 0x6c, 0x73, 0x65};
-static unsigned char string_6895804349017018507[4] = {0x6e, 0x75, 0x6c, 0x6c};
-static unsigned char string_8179814853952207734[4] = {0x74, 0x72, 0x75, 0x65};
+static const unsigned char string_3946110457539242724[5] = {0x66, 0x61, 0x6c, 0x73, 0x65};
+static const unsigned char string_6895804349017018507[4] = {0x6e, 0x75, 0x6c, 0x6c};
+static const unsigned char string_8179814853952207734[4] = {0x74, 0x72, 0x75, 0x65};
 
 // Numbersets from grammar
 static uint8_t numberset_304032344720464445() {
@@ -312,7 +329,9 @@ static size_t container_2(unsigned char* buf, size_t len) {
 }
 static size_t container_3(unsigned char* buf, size_t len) {
     size_t original_len = len;
-    switch(rand() % 2) {
+    static THREAD_LOCAL uint64_t oneof_cursor = 0;
+    uint64_t oneof_selector = oneof_cursor++ % 2;
+    switch(oneof_selector) {
         case 0: {
         size_t container_len = container_0(buf, len);
         buf += container_len; len -= container_len;
@@ -348,7 +367,9 @@ static size_t container_4(unsigned char* buf, size_t len) {
 }
 static size_t container_5(unsigned char* buf, size_t len) {
     size_t original_len = len;
-    switch(rand() % 2) {
+    static THREAD_LOCAL uint64_t oneof_cursor = 0;
+    uint64_t oneof_selector = oneof_cursor++ % 2;
+    switch(oneof_selector) {
         case 0: {
         if (UNLIKELY(len < 1)) {
             goto container_end;
@@ -539,7 +560,9 @@ static size_t container_14(unsigned char* buf, size_t len) {
 }
 static size_t container_15(unsigned char* buf, size_t len) {
     size_t original_len = len;
-    switch(rand() % 2) {
+    static THREAD_LOCAL uint64_t oneof_cursor = 0;
+    uint64_t oneof_selector = oneof_cursor++ % 2;
+    switch(oneof_selector) {
         case 0: {
         if (UNLIKELY(len < 1)) {
             goto container_end;
@@ -678,7 +701,9 @@ static size_t container_20(unsigned char* buf, size_t len) {
 }
 static size_t container_21(unsigned char* buf, size_t len) {
     size_t original_len = len;
-    switch(rand() % 7) {
+    static THREAD_LOCAL uint64_t oneof_cursor = 0;
+    uint64_t oneof_selector = oneof_cursor++ % 7;
+    switch(oneof_selector) {
         case 0: {
         size_t container_len = container_8(buf, len);
         buf += container_len; len -= container_len;
