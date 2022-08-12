@@ -1,0 +1,7 @@
+/* A grammar that has a constant output
+   for benchmarking.
+ */
+
+struct Root {
+    repeats 1048576 _: u64 = 0;
+}

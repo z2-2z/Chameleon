@@ -414,51 +414,148 @@ fn run_benchmark() {
         &mut file,
 "
 #include <stdio.h>
+#include <stdlib.h>
 #include <stddef.h>
-#include <pthread.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <time.h>
 
 #include \"chm-generator.c.h\"
 
-unsigned char buffer[1024 * 1024 * 1024];
-volatile size_t generated = 0;
-volatile size_t iterations = 0;
+typedef struct thread_data {{
+    // Input for thread
+    size_t limit;
+    unsigned char* buffer;
+    size_t buffer_size;
+    size_t seed;
+    
+    // Output of thread
+    char success;
+    time_t elapsed;
+    size_t iterations;
+}} thread_data;
 
-__attribute__((noreturn))
-void* generator_thread (void* _arg) {{
-    for (;;) {{
-        size_t g = generate(buffer, sizeof(buffer));
-        __atomic_add_fetch(&generated, g, __ATOMIC_SEQ_CST);
-        __atomic_add_fetch(&iterations, 1, __ATOMIC_SEQ_CST);
+void* generator_thread (void* arg) {{
+    thread_data* data = (thread_data*) arg;
+    size_t generated = 0;
+    size_t iterations = 0;
+    struct timespec start, end;
+    
+    data->success = 0;
+    seed(data->seed);
+    
+    if (clock_gettime(CLOCK_MONOTONIC, &start) != 0) {{
+        return NULL;
     }}
+    
+    while (generated < data->limit) {{
+        generated += generate(data->buffer, data->buffer_size);
+        iterations++;
+    }}
+    
+    if (clock_gettime(CLOCK_MONOTONIC, &end) != 0) {{
+        return NULL;
+    }}
+    
+    data->success = 1;
+    data->elapsed = end.tv_sec - start.tv_sec;
+    data->iterations = iterations;
+    
+    return NULL;
 }}
 
-int main (void) {{
-    pthread_t thread = 0;
-    if (pthread_create(&thread, NULL, generator_thread, NULL) != 0) {{
-        return 1;
+void print_results (thread_data* results, int threads) {{
+    // Calculate total MiB/s
+    double total_per_sec = 0.0;
+    
+    for (int i = 0; i < threads; ++i) {{
+        total_per_sec += ((double) results[i].limit / (double) results[i].elapsed);
     }}
     
-    struct timespec start;
-    if (clock_gettime(CLOCK_MONOTONIC, &start) != 0) {{
-        return 1;
+    // Calculate the mean from the mean size per iteration
+    size_t mean_size = 0;
+    
+    for (int i = 0; i < threads; ++i) {{
+        mean_size += (results[i].limit / results[i].iterations);
     }}
     
-    for (;;) {{
-        sleep(1);
+    mean_size /= threads;
+    
+    printf(\" -> threads: %d | total generated: %.4lf MiB/s | mean size: %lu\\n\", threads, total_per_sec / 1024.0 / 1024.0, mean_size);
+}}
+
+size_t GiB (size_t n) {{
+    return n * 1024 * 1024 * 1024;
+}}
+
+int main (int argc, char** argv) {{
+    int num_threads = 1;
+    
+    if (argc > 1) {{
+        num_threads = atoi(argv[1]);
         
-        struct timespec now;
-        if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {{
+        if (num_threads <= 0) {{
             return 1;
         }}
+    }}
+    
+    thread_data results[num_threads];
+    pthread_t threads[num_threads];
+    size_t limit = 1;
+    time_t min_time = 10;
+    
+    for (int i = 0; i < num_threads; ++i) {{
+        results[i].buffer_size = GiB(1);
         
-        size_t g = __atomic_load_n(&generated, __ATOMIC_SEQ_CST);
-        size_t i = __atomic_load_n(&iterations, __ATOMIC_SEQ_CST);
+        if (!(results[i].buffer = malloc(GiB(1)))) {{
+            return 1;
+        }}
+    }}
+    
+    printf(\"Measuring time to %lu GiB:\\n\", limit);
+    
+    for (int j = 0; ; ++j) {{
+        for (int i = 0; i < num_threads; ++i) {{
+            results[i].limit = GiB(limit);
+            results[i].seed = (size_t)argv + j * num_threads + i;
+            
+            if (pthread_create(&threads[i], NULL, generator_thread, (void*) &results[i]) != 0) {{
+                return 1;
+            }}
+        }}
         
-        double elapsed = (double)(now.tv_sec - start.tv_sec);
-        double bytes_per_sec = (double) g / elapsed;
-        printf(\"%.4lf MiB/sec (mean size: %lu)\\n\", bytes_per_sec / 1024.0 / 1024.0, g / i);
+        for (int i = 0; i < num_threads; ++i) {{
+            if (pthread_join(threads[i], NULL) != 0) {{
+                return 1;
+            }}
+            
+            if (!results[i].success) {{
+                return 1;
+            }}
+        }}
+        
+        // Check if we need to adjust the limit
+        char adjust = 0;
+        
+        for (int i = 0; i < num_threads; ++i) {{
+            if (results[i].elapsed < min_time) {{
+                adjust = 1;
+                break;
+            }}
+        }}
+        
+        if (adjust) {{
+            limit <<= 1;
+            
+            if (limit == 0) {{
+                return 1;
+            }}
+            
+            printf(\"One run took less than %ld seconds, readjusting limit to %lu GiB\\n\", min_time, limit);
+            printf(\"Measuring time to %lu GiB:\\n\", limit);
+        }} else {{
+            print_results(results, num_threads);
+        }}
     }}
 }}
 "
@@ -469,8 +566,14 @@ int main (void) {{
         .arg("/tmp/chm-bench")
         .arg("-O3")
         .arg("-flto")
+        .arg("-lpthread")
         .arg("/tmp/chm-bench.c")
         .arg("/tmp/chm-generator.c")
+        .arg("-DMULTITHREADING")
+        .arg("-Wall")
+        .arg("-Wextra")
+        .arg("-Wpedantic")
+        .arg("-Wno-unused-function")
         .spawn()
         .expect("Could not launch gcc")
         .wait()
