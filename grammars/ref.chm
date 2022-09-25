@@ -45,13 +45,13 @@ struct NumberTypes {
     byte: i8 = -128..127;
     
     word: u16 = 0..0xFFFF;
-    word: i16 = -32768..0x7FFF;
+    word: i16 = -32768..32767;
     
     dword: u32 = 0..0xFFFFFFFF;
-    dword: i32 = -2147483648..0x7FFFFFFF;
+    dword: i32 = -2147483648..2147483647;
     
     qword: u64 = 0..0xFFFFFFFFFFFFFFFF;
-    qword: i64 = -9223372036854775808..0x7FFFFFFFFFFFFFFF;
+    qword: i64 = -9223372036854775808..9223372036854775807;
 }
 
 /* Demonstrates the use of string types */

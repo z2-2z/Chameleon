@@ -12,7 +12,7 @@ use std::io::{Write, Result, stdout};
 use std::fs::File;
 use std::fmt::Display;
 use std::ops::Range;
-use num_traits::{Num, cast::NumCast};
+use num_traits::{Num, cast::NumCast, bounds::Bounded};
 
 fn emit_header<T: Write>(stream: &mut T, args: &Args) -> Result<()> {
     write!(
@@ -194,9 +194,23 @@ fn numberset_c_type(typ: &NumbersetType) -> &str {
     }
 }
 
-fn emit_range_selection<T: Write, R: Display + Ord + Num + NumCast + Copy>(stream: &mut T, range: &Range<R>, c_type: &str, suffix: &str, scheduling: &Scheduling) -> Result<()> {
+fn emit_range_selection<T, R>(stream: &mut T, range: &Range<R>, c_type: &str, suffix: &str, scheduling: &Scheduling) -> Result<()>
+where
+    T: Write,
+    R: Display + Ord + Num + NumCast + Copy + Bounded,
+{
+    let zero = R::from(0).unwrap();
+    let one = R::from(1).unwrap();
+    let min_value = R::min_value();
+    
+    let start_format = if range.start.cmp(&min_value) == std::cmp::Ordering::Equal && range.start.cmp(&zero) != std::cmp::Ordering::Equal {
+        format!("({0}{1} - 1{1})", min_value + one, suffix)
+    } else {
+        format!("{}{}", range.start, suffix)
+    };
+    
     if range.end == range.start {
-        writeln!(stream, "            return {}{};", range.start, suffix)?;
+        writeln!(stream, "            return {};", start_format)?;
     } else {
         match scheduling {
             Scheduling::RoundRobin => {
@@ -208,7 +222,13 @@ fn emit_range_selection<T: Write, R: Display + Ord + Num + NumCast + Copy>(strea
             },
         }
         
-        writeln!(stream, "            return ((({}) range_selector) % {}{}) + {}{};", c_type, range.end - range.start + R::from(1).unwrap(), suffix, range.start, suffix)?;
+        let delta: R = range.end - range.start + one;
+        
+        if delta.cmp(&zero) == std::cmp::Ordering::Equal {
+            writeln!(stream, "            return (({}) range_selector) + {};", c_type, start_format)?;
+        } else {
+            writeln!(stream, "            return ((({}) range_selector) % {}{}) + {};", c_type, delta, suffix, start_format)?;
+        }
     }
     
     Ok(())
@@ -217,7 +237,7 @@ fn emit_range_selection<T: Write, R: Display + Ord + Num + NumCast + Copy>(strea
 fn emit_single_numberset<T, R>(stream: &mut T, numberset: &Numberset<R>, c_type: &str, suffix: &str, scheduling: &Scheduling) -> Result<()>
 where
     T: Write,
-    R: Display + Ord + Num + NumCast + Copy,
+    R: Display + Ord + Num + NumCast + Copy + Bounded,
 {
     if numberset.len() == 1 {
         emit_range_selection(stream, &numberset[0], c_type, suffix, scheduling)?;
@@ -268,8 +288,8 @@ fn emit_numbersets<T: Write>(stream: &mut T, grammar: &Grammar) -> Result<()> {
                 NumbersetType::I16(numberset) => emit_single_numberset(stream, numberset, c_type, "", scheduling)?,
                 NumbersetType::U32(numberset) => emit_single_numberset(stream, numberset, c_type, "U", scheduling)?,
                 NumbersetType::I32(numberset) => emit_single_numberset(stream, numberset, c_type, "", scheduling)?,
-                NumbersetType::U64(numberset) => emit_single_numberset(stream, numberset, c_type, "UL", scheduling)?,
-                NumbersetType::I64(numberset) => emit_single_numberset(stream, numberset, c_type, "L", scheduling)?,
+                NumbersetType::U64(numberset) => emit_single_numberset(stream, numberset, c_type, "ULL", scheduling)?,
+                NumbersetType::I64(numberset) => emit_single_numberset(stream, numberset, c_type, "LL", scheduling)?,
             }
             
             writeln!(stream, "}}")?;
