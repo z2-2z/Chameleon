@@ -1,6 +1,5 @@
 - [ ] add encoding to random string generation
 - [ ] char ranges
-- [ ] more whitespaces in range
 - [ ] allow cycles per default
 - [ ] look for unconditional cycles when --allow-cycles
 - [ ] extra option numberset_scheduling that is only global. also scheduling -> oneof_scheduling

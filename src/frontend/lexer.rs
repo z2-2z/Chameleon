@@ -238,6 +238,25 @@ impl<'a> Scanner<'a> {
         skipped
     }
     
+    /// Execute a peek after skipping the content according to `F` like in `skip()` above
+    /// but without advancing the cursor
+    fn peek_after<F>(&self, func: &mut F, buf: &str) -> bool
+    where
+        F: FnMut(&str) -> bool,
+    {
+        let mut skipped = 0;
+        
+        while self.cursor + skipped < self.view.len() {
+            if func(self.view.slice(self.cursor + skipped, 1)) {
+                skipped += 1;
+            } else {
+                break;
+            }
+        }
+
+        self.view.slice(self.cursor + skipped, buf.len()) == buf
+    }
+    
     /// Run a given function that gets a grapheme as input and outputs
     /// a boolean on the grapheme at the current cursor position
     fn check<F>(&mut self, func: &mut F) -> bool
@@ -737,8 +756,10 @@ impl<'a> Lexer<'a> {
                 };
                 
                 // Is this a number range ?
-                if self.scanner.peek(keywords::RANGE_OP) {
+                if self.scanner.peek_after(&mut is_whitespace_nonl, keywords::RANGE_OP) {
+                    self.scanner.skip(&mut is_whitespace_nonl);
                     self.scanner.forward(keywords::RANGE_OP.len());
+                    self.scanner.skip(&mut is_whitespace_nonl);
                     
                     let limit_start = self.scanner.cursor;
                     let limit_end = match self.scanner.skip(&mut is_integer) {
@@ -762,7 +783,8 @@ impl<'a> Lexer<'a> {
             }
             
             // If we have a ',', parse again
-            if self.scanner.peek(keywords::NUMBERSET_DELIM) {
+            if self.scanner.peek_after(&mut is_whitespace_nonl, keywords::NUMBERSET_DELIM) {
+                self.scanner.skip(&mut is_whitespace_nonl);
                 self.scanner.forward(keywords::NUMBERSET_DELIM.len());
                 self.scanner.skip(&mut is_whitespace_nonl);
             } else {
@@ -972,6 +994,13 @@ mod tests {
     #[test]
     fn test_number_formats() {
         let input = "struct x{x:x=0x01..0o77,0b10101;}";
+        let view = SourceView::new(input);
+        Lexer::new(&view).lex().unwrap();
+    }
+    
+    #[test]
+    fn test_numberset_whitespaces() {
+        let input = "struct x{x:x=0x01 .. 0o77 , 0b10101 .. 1 , 2;}";
         let view = SourceView::new(input);
         Lexer::new(&view).lex().unwrap();
     }
