@@ -11,7 +11,10 @@ mod backend;
 #[clap(author, version, about, long_about = None)]
 pub struct Args {
     #[clap(long, action, default_value_t = false)]
-    allow_cycles: bool,
+    forbid_cycles: bool,
+    
+    #[clap(long, action, default_value_t = false)]
+    print_stats: bool,
     
     #[clap(long, action, default_value_t = false)]
     bench: bool,
@@ -358,25 +361,36 @@ fn warning(msg: &str) -> Result<(), std::io::Error> {
 }
 
 fn verify_grammar(view: &frontend::SourceView, grammar: &grammar::Grammar, args: &Args) {
-    let graph = frontend::graph::GrammarGraph::from_grammar(grammar);
+    let graph = frontend::graph::GrammarGraph::minimal_graph(grammar);
     
+    if let Some(cycle) = graph.cycle() {
+        let _ = print_cycle(view, cycle, grammar);
+        std::process::exit(1);
+    }
+    
+    let graph = frontend::graph::GrammarGraph::full_graph(grammar);    
+
     let dead_containers = graph.unreachable_containers();
     if !dead_containers.is_empty() {
         let _ = print_dead_containers(view, dead_containers, grammar);
         std::process::exit(1);
     }
     
-    if !args.allow_cycles {
-        if let Some(cycle) = graph.cycle() {
-            let _ = print_cycle(view, cycle, grammar);
+    let cycle = graph.cycle();
+    
+    if args.forbid_cycles {
+        if let Some(cycle) = &cycle {
+            let _ = print_cycle(view, *cycle, grammar);
             std::process::exit(1);
         }
     }
     
-    if graph.cycle().is_some() {
-        let _ = warning("Graph contains cycles so no stats will be printed");
-    } else {
-        print_stats(grammar);
+    if args.print_stats {
+        if cycle.is_some() {
+            let _ = warning("Graph contains cycles so no stats will be printed");
+        } else {
+            print_stats(grammar);
+        }
     }
 }
 

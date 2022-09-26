@@ -378,10 +378,91 @@ impl Grammar {
         }
     }
     
-    pub fn container_callees(&self, id: ContainerId) -> Vec<ContainerId> {
+    pub fn container_callees(&self, id: ContainerId, full: bool) -> Vec<ContainerId> {
         let mut ret = Vec::<ContainerId>::new();
         
         for var in &self.containers.get(&id).unwrap().variables {
+            if !full {
+                if var.options.optional {
+                    continue;
+                }
+                
+                let mut optional = false;
+                
+                if let Some(id) = &var.options.repeats {
+                    match self.numbersets.get(id).unwrap() {
+                        NumbersetType::U8(set) => {
+                            for range in set {
+                                if range.start == 0 {
+                                    optional = true;
+                                    break;
+                                }
+                            }
+                        },
+                        NumbersetType::I8(set) => {
+                            for range in set {
+                                if range.start == 0 {
+                                    optional = true;
+                                    break;
+                                }
+                            }
+                        },
+                        NumbersetType::U16(set) => {
+                            for range in set {
+                                if range.start == 0 {
+                                    optional = true;
+                                    break;
+                                }
+                            }
+                        },
+                        NumbersetType::I16(set) => {
+                            for range in set {
+                                if range.start == 0 {
+                                    optional = true;
+                                    break;
+                                }
+                            }
+                        },
+                        NumbersetType::U32(set) => {
+                            for range in set {
+                                if range.start == 0 {
+                                    optional = true;
+                                    break;
+                                }
+                            }
+                        },
+                        NumbersetType::I32(set) => {
+                            for range in set {
+                                if range.start == 0 {
+                                    optional = true;
+                                    break;
+                                }
+                            }
+                        },
+                        NumbersetType::U64(set) => {
+                            for range in set {
+                                if range.start == 0 {
+                                    optional = true;
+                                    break;
+                                }
+                            }
+                        },
+                        NumbersetType::I64(set) => {
+                            for range in set {
+                                if range.start == 0 {
+                                    optional = true;
+                                    break;
+                                }
+                            }
+                        },
+                    }
+                }
+                
+                if optional {
+                    continue;
+                }
+            }
+            
             match &var.typ {
                 VariableType::ContainerRef(id) => {
                     if self.containers.get(&id).unwrap().typ() == ContainerType::Struct {
@@ -389,7 +470,7 @@ impl Grammar {
                     }
                 },
                 VariableType::Oneof(id) => {
-                    let mut callees = self.container_callees(*id);
+                    let mut callees = self.container_callees(*id, true);
                     ret.append(&mut callees);
                 },
                 _ => {},

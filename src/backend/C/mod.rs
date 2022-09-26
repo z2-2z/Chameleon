@@ -24,11 +24,11 @@ fn emit_header<T: Write>(stream: &mut T, args: &Args) -> Result<()> {
               Parameters
              ~~~~~~~~~~~~
   Grammar: {}
-  Allow cycles: {}
+  Forbid cycles: {}
  ************************************/
 ",
         &args.grammar,
-        args.allow_cycles
+        args.forbid_cycles
     )?;
     Ok(())
 }

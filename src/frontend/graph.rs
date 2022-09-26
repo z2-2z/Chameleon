@@ -13,7 +13,7 @@ pub struct GrammarGraph<'a> {
 }
 
 impl<'a> GrammarGraph<'a> {
-    pub fn from_grammar(grammar: &'a Grammar) -> Self {
+    pub fn full_graph(grammar: &'a Grammar) -> Self {
         let mut graph = Graph::new();
         let mut container_map = BTreeMap::<ContainerId, NodeIndex>::new();
         
@@ -25,7 +25,34 @@ impl<'a> GrammarGraph<'a> {
         }
         
         for (start_id, start_idx) in container_map.iter() {
-            for dest_id in grammar.container_callees(*start_id) {
+            for dest_id in grammar.container_callees(*start_id, true) {
+                let dest_idx = container_map.get(&dest_id).unwrap();
+                graph.add_edge(*start_idx, *dest_idx, ());
+            }
+        }
+        
+        assert!(graph.is_directed());
+        
+        Self {
+            grammar,
+            graph,
+            container_map,
+        }
+    }
+    
+    pub fn minimal_graph(grammar: &'a Grammar) -> Self {
+        let mut graph = Graph::new();
+        let mut container_map = BTreeMap::<ContainerId, NodeIndex>::new();
+        
+        for id in grammar.container_ids() {
+            if grammar.container(*id).unwrap().typ() == ContainerType::Struct {
+                let idx = graph.add_node(*id);
+                assert!( container_map.insert(*id, idx).is_none() );
+            }
+        }
+        
+        for (start_id, start_idx) in container_map.iter() {
+            for dest_id in grammar.container_callees(*start_id, false) {
                 let dest_idx = container_map.get(&dest_id).unwrap();
                 graph.add_edge(*start_idx, *dest_idx, ());
             }
