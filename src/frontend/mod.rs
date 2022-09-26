@@ -5,6 +5,7 @@ pub mod graph;
 pub mod stats;
 
 mod source_view;
+mod bitpattern;
 
 pub use lexer::{Lexer, LexerError};
 pub use parser::{Parser, ParserError};

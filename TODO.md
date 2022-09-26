@@ -2,6 +2,6 @@
 - [ ] allow cycles per default
 - [ ] look for unconditional cycles when --allow-cycles
 - [ ] extra option numberset_scheduling that is only global. also scheduling -> oneof_scheduling
-- [ ] allow bitpatterns in signed formats
 - [ ] Correctness: tests + fuzzing
 - [ ] Additional grammar stats ?
+- [ ] names of structs may not collide with keywords

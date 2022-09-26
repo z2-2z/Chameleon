@@ -12,6 +12,7 @@ use crate::{
         lexer::{Token, TokenId},
         source_view::{SourceRange, SourceView, NewRange},
         keywords,
+        bitpattern::FromBitPattern,
     },
 };
 use std::ops::Range;
@@ -534,6 +535,7 @@ impl<'a> Parser<'a> {
             keywords::TYPE_I32 => Ok(VariableType::I32(IntegerValue::Any)),
             keywords::TYPE_U64 => Ok(VariableType::U64(IntegerValue::Any)),
             keywords::TYPE_I64 => Ok(VariableType::I64(IntegerValue::Any)),
+            keywords::CONTAINER |
             keywords::TYPE_STRING |
             keywords::TYPE_BYTES |
             keywords::TYPE_ONEOF => Err(ParserError::InvalidKeyword(
@@ -546,7 +548,7 @@ impl<'a> Parser<'a> {
     
     fn parse_numberset<T>(&mut self, allow_chars: bool) -> Result<Vec<Range<T>>, ParserError>
     where
-        T: Num + Copy + core::cmp::Ord + NumCast + std::fmt::Debug,
+        T: Num + Copy + core::cmp::Ord + NumCast + std::fmt::Debug + FromBitPattern,
     {
         let numberset_start = if let Token::NumbersetStart(start) = self.scanner.expect(TokenId::NumbersetStart)? {
             *start
@@ -659,13 +661,13 @@ impl<'a> Parser<'a> {
     
     fn parse_single_integer<T>(&mut self, literal: &SourceRange) -> Result<T, ParserError>
     where
-        T: Num + Copy + core::cmp::Ord + NumCast,
+        T: Num + Copy + core::cmp::Ord + NumCast + FromBitPattern,
     {
         let source = self.scanner.get_source(literal);
         
         // Is it a hexadecimal number ?
         if source.len() > 2 && source.starts_with("0x") {
-            if let Ok(number) = T::from_str_radix(&source[2..], 16) {
+            if let Some(number) = T::from_hex_pattern(&source[2..]) {
                 Ok(number)
             } else {
                 Err(ParserError::InvalidNumber(
@@ -673,10 +675,10 @@ impl<'a> Parser<'a> {
                     literal.clone(),
                 ))
             }
-        } 
+        }
         // Is it a octal number ?
         else if source.len() > 2 && source.starts_with("0o") {
-            if let Ok(number) = T::from_str_radix(&source[2..], 8) {
+            if let Some(number) = T::from_oct_pattern(&source[2..]) {
                 Ok(number)
             } else {
                 Err(ParserError::InvalidNumber(
@@ -687,7 +689,7 @@ impl<'a> Parser<'a> {
         }
         // Is it a binary number ?
         else if source.len() > 2 && source.starts_with("0b") {
-            if let Ok(number) = T::from_str_radix(&source[2..], 2) {
+            if let Some(number) = T::from_bin_pattern(&source[2..]) {
                 Ok(number)
             } else {
                 Err(ParserError::InvalidNumber(

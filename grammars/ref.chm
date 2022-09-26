@@ -42,7 +42,7 @@ struct NumberTypes {
 
     byte: u8;
     byte: u8 = 'A', 0xF, 0o7, 0b101;
-    byte: i8 = -128..127;
+    byte: i8 = -128..127, 0x80..0xFF, 0o200..0o377, 0b10000000..0b11111111;
     
     word: u16 = 0..0xFFFF;
     word: i16 = -32768..32767;
