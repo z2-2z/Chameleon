@@ -3,3 +3,13 @@
 - [ ] Correctness: tests + fuzzing
 - [ ] Additional grammar stats ?
 - [ ] names of structs may not collide with keywords
+- [ ] add max depth in C code
+    - as option in grammar (value must be >= 1, stored as u64, special value "unlimited" which is default)
+    - unlimited = ULLONG_MAX
+    - at start of generate set depth to 0
+        - in debug mode check that depth is 0 after leaving root container
+    - at beginning of each named struct, increase value
+    - at end of each named struct, decrease value
+    - optional: depth < limit && ...
+    - repeats: extra branch: if depth >= limit then smallest elem of numberset else invoke numberset
+    - bytearray: choose smallest length
