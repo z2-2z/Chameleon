@@ -13,6 +13,7 @@ pub const RANGE_OP: &str = "..";
 pub const NUMBERSET_DELIM: &str = ",";
 pub const VAR_TYPE_SEP: &str = ":";
 pub const STRING_DELIM: &str = "\"";
+pub const CHAR_DELIM: &str = "'";
 
 pub const OPTION_ENDIANNESS: &str = "endianness";
 pub const OPTION_SCHEDULING: &str = "scheduling";

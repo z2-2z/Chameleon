@@ -38,7 +38,7 @@ option scheduling = random;
 /* Demonstrates the use of number types */
 struct NumberTypes {
     char: char;
-    char: char = 'A', 'B';
+    char: char = '+', '*', 'A'..'Z', 'a'..'z';
 
     byte: u8;
     byte: u8 = 'A', 0xF, 0o7, 0b101;

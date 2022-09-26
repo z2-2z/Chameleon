@@ -90,6 +90,9 @@ pub enum Token {
     
     /// The currently active block is being closed
     BlockClose,
+    
+    /// A range of characters was specified
+    CharRange(SourceRange, SourceRange),
 }
 
 /// Same purpose as Tokens but for faster matching
@@ -114,6 +117,7 @@ pub enum TokenId {
     VariableValueEnd,
     BlockOpen,
     BlockClose,
+    CharRange,
 }
 impl TokenId {
     pub fn description(&self) -> &str {
@@ -137,6 +141,7 @@ impl TokenId {
             TokenId::VariableValueEnd => "the end of the value",
             TokenId::BlockOpen => "the opening of a block",
             TokenId::BlockClose => "the closure of the block",
+            TokenId::CharRange => "a character range",
         }
     }
 }
@@ -163,6 +168,7 @@ impl Token {
             Token::VariableValueEnd => TokenId::VariableValueEnd,
             Token::BlockOpen(_) => TokenId::BlockOpen,
             Token::BlockClose => TokenId::BlockClose,
+            Token::CharRange(_, _) => TokenId::CharRange,
         }
     }
     
@@ -187,6 +193,7 @@ impl Token {
             Token::VariableValueEnd => None,
             Token::BlockOpen(pos) => Some(*pos),
             Token::BlockClose => None,
+            Token::CharRange(range, _) => Some(range.start),
         }
     }
 }
@@ -670,7 +677,7 @@ impl<'a> Lexer<'a> {
             // After an equals sign we either expect a string literal or a numberset
             if self.scanner.peek(keywords::STRING_DELIM) {
                 self.parse_string_literal(tokens)?;
-            } else if self.scanner.check(&mut |s| s == "'" || is_integer(s)) {
+            } else if self.scanner.check(&mut |s| s == keywords::CHAR_DELIM || is_integer(s)) {
                 self.parse_numberset(tokens)?;
             } else {
                 return Err(LexerError::ExpectedLiteral(
@@ -710,38 +717,24 @@ impl<'a> Lexer<'a> {
         
         while !self.scanner.done() {
             // Do we have a simple char ?
-            if self.scanner.peek("'") {
-                self.scanner.forward(1);
-                let mut seen_backslash = false;
+            if self.scanner.peek(keywords::CHAR_DELIM) {
+                let (char_start, char_end) = self.parse_char_literal()?;
                 
-                let char_start = self.scanner.cursor;
-                let char_end = match self.scanner.skip(&mut |s| {
-                    if s == "'" {
-                        let ret = seen_backslash;
-                        seen_backslash = false;
-                        ret
-                    } else if seen_backslash {
-                        seen_backslash = false;
-                        true
-                    } else if s == "\\" {
-                        seen_backslash = true;
-                        true
-                    } else {
-                        is_char(s)
-                    }
-                }) {
-                    1 => char_start + 1,
-                    2 => char_start + 2,
-                    _ => {
-                        return Err(LexerError::InvalidCharLiteral(
-                            char_start
-                        ));
-                    },
-                };
-                
-                self.scanner.forward(1);
-                
-                tokens.push(Token::Character(SourceRange::new(char_start, char_end)));
+                // Is this a char range ?
+                if self.scanner.peek_after(&mut is_whitespace_nonl, keywords::RANGE_OP) {
+                    self.scanner.skip(&mut is_whitespace_nonl);
+                    self.scanner.forward(keywords::RANGE_OP.len());
+                    self.scanner.skip(&mut is_whitespace_nonl);
+                    
+                    let (limit_start, limit_end) = self.parse_char_literal()?;
+                    
+                    tokens.push(Token::CharRange(
+                        SourceRange::new(char_start, char_end),
+                        SourceRange::new(limit_start, limit_end),
+                    ));
+                } else {
+                    tokens.push(Token::Character(SourceRange::new(char_start, char_end)));
+                }
             }
             // Otherwise we must have a number
             else {
@@ -795,6 +788,41 @@ impl<'a> Lexer<'a> {
         tokens.push(Token::NumbersetEnd);
         
         Ok(())
+    }
+    
+    fn parse_char_literal(&mut self) -> Result<(usize, usize), LexerError> {
+        self.scanner.expect(keywords::CHAR_DELIM)?;
+        
+        let start = self.scanner.cursor;
+        let mut seen_backslash = false;
+        
+        self.scanner.skip(&mut |s| {
+            if s == keywords::CHAR_DELIM {
+                let ret = seen_backslash;
+                seen_backslash = false;
+                ret
+            } else if seen_backslash {
+                seen_backslash = false;
+                true
+            } else if s == "\\" {
+                seen_backslash = true;
+                true
+            } else {
+                is_char(s)
+            }
+        });
+        
+        let end = self.scanner.cursor;
+        
+        if start == end || end - start > 2 {
+            return Err(LexerError::InvalidCharLiteral(
+                start
+            ));
+        }
+        
+        self.scanner.forward(1);
+        
+        Ok((start, end))
     }
     
     fn parse_string_literal(&mut self, tokens: &mut Vec<Token>) -> Result<(), LexerError> {

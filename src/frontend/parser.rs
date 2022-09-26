@@ -579,6 +579,35 @@ impl<'a> Parser<'a> {
                     
                     ranges.push(Range::new(lower_number, upper_number));
                 },
+                Token::CharRange(lower, upper) => {
+                    if !allow_chars {
+                        return Err(ParserError::CharacterNotAllowed(
+                            SourceRange::new(lower.start - 1, upper.end + 1)
+                        ));
+                    }
+                    
+                    let lower_char = self.parse_char_literal(lower)?;
+                    let upper_char = self.parse_char_literal(upper)?;
+                    
+                    if upper_char < lower_char {
+                        return Err(ParserError::InvalidRange(
+                            SourceRange::new(lower.start - 1, upper.end + 1)
+                        ));
+                    }
+                    
+                    let lower_t = if let Some(t) = T::from(lower_char) {
+                        t
+                    } else {
+                        return Err(ParserError::InvalidCharacter(lower.clone()));
+                    };
+                    let upper_t = if let Some(t) = T::from(upper_char) {
+                        t
+                    } else {
+                        return Err(ParserError::InvalidCharacter(upper.clone()));
+                    };
+                    
+                    ranges.push(Range::new(lower_t, upper_t));
+                },
                 Token::Character(literal) => {
                     if !allow_chars {
                         return Err(ParserError::CharacterNotAllowed(
