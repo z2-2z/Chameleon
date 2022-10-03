@@ -1,8 +1,17 @@
 - [ ] add encoding to random string generation
 - [ ] extra option numberset_scheduling that is only global. also scheduling -> oneof_scheduling
 - [ ] Correctness: tests + fuzzing
+    - Fuzzing:
+        - Generate a random set of nodes with names
+        - Generate a random graph with adjacency matrix (ignore main diagonale)
+        - For each node generate a random set of variables including
+          the refs to other nodes from matrix
+        - syntax should be valid, don't care about lexer bugs
+        - if chameleon exits with 0: generated code must compile without warnings !
+        - fuzz in release mode
+        - purely generation based
+        - exit as soon as crash is found
 - [ ] Additional grammar stats ?
-- [ ] names of structs may not collide with keywords
 - [ ] add max depth in C code
     - as option in grammar (value must be >= 1, stored as u64, special value "unlimited" which is default)
     - unlimited = ULLONG_MAX

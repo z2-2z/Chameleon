@@ -39,6 +39,7 @@ pub enum ParserError {
     NoRoot,
     UnresolvedRef(SourceRange),
     EmptyBlock(usize),
+    IllegalContainerName(SourceRange),
 }
 
 struct TokenScanner<'a> {
@@ -54,42 +55,6 @@ impl<'a> TokenScanner<'a> {
             cursor: 0,
         }
     }
-    /*
-    fn subslice<F>(&self, cond: &mut F) -> &'a [Token]
-    where
-        F: FnMut(&'a Token) -> bool,
-    {
-        let mut len = 0;
-        
-        while self.cursor.saturating_add(len) < self.tokens.len() {
-            if !cond(&self.tokens[self.cursor + len]) {
-                len += 1;
-                break;
-            }
-            
-            len += 1;
-        }
-        
-        &self.tokens[self.cursor..self.cursor + len]
-    }
-    */
-    /*
-    fn next(&mut self) -> Option<&'a Token> {
-        if self.cursor < self.tokens.len() {
-            let idx = self.cursor;
-            self.cursor += 1;
-            Some(&self.tokens[idx])
-        } else {
-    
-    fn revert(&mut self) {
-        if self.cursor > 0 {
-            self.cursor -= 1;
-        }
-    }
-            None
-        }
-    }
-    */
     
     fn expect(&mut self, id: TokenId) -> Result<&'a Token, ParserError> {
         if self.cursor < self.tokens.len() {
@@ -186,8 +151,6 @@ impl<'a> Parser<'a> {
         }
         
         // Resolve container references
-        // Due to borrow problems we first store all
-        // the references before applying them
         for (container_id, var, name) in grammar.unresolved_names() {
             let source = self.scanner.get_source(&name);
             
@@ -265,10 +228,32 @@ impl<'a> Parser<'a> {
     fn parse_container(&mut self, grammar: &mut Grammar) -> Result<Container, ParserError> {
         let name = match self.scanner.expect(TokenId::ContainerOpen)? {
             Token::ContainerOpen(_, name) => {
+                let source = self.scanner.get_source(&name);
+                
+                /* check that name isn't a keyword */
+                match source {
+                    keywords::CONTAINER |
+                    keywords::TYPE_U8 |
+                    keywords::TYPE_I8 |
+                    keywords::TYPE_U16 |
+                    keywords::TYPE_I16 |
+                    keywords::TYPE_U32 |
+                    keywords::TYPE_I32 |
+                    keywords::TYPE_U64 |
+                    keywords::TYPE_I64 |
+                    keywords::TYPE_ONEOF |
+                    keywords::TYPE_STRING |
+                    keywords::TYPE_BYTES |
+                    keywords::TYPE_CHAR => {
+                        return Err(ParserError::IllegalContainerName(name.clone()));
+                    },
+                    _ => {},
+                }
+                
                 /* check if name already exists */
                 for container in grammar.containers() {
                     if let Some(other_name) = container.name() {
-                        if self.scanner.get_source(&name) == self.scanner.get_source(other_name) {
+                        if source == self.scanner.get_source(other_name) {
                             return Err(ParserError::DuplicateContainerName(name.clone()));
                         }
                     }
