@@ -1,5 +1,4 @@
 - [ ] add encoding to random string generation
-- [ ] extra option numberset_scheduling that is only global. also scheduling -> oneof_scheduling
 - [ ] Correctness: tests + fuzzing
     - Fuzzing:
         - Generate a random set of nodes with names

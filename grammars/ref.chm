@@ -80,18 +80,18 @@ struct OneofTypes {
 /* Demonstrates the use of local options */
 struct LocalOptions {
     option endianness = big;
-    option scheduling = random;
     
     swapped: u16 = 0x1337;
     random: u8;
     local_options: oneof {
         option scheduling = round-robin;
+        option scheduling = random;
         
         opt_1: u8;
         opt_2: u8;
     };
     local_options: struct {
-        option scheduling = round-robin;
+        option endianness = little;
 
         opt_3: u8;
     };
