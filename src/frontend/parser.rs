@@ -7,6 +7,7 @@ use crate::{
         VariableOptions, NumbersetType,
         BytearrayValue, StringId,
         ContainerId, ContainerType,
+        ContainerOptions,
     },
     frontend::{
         lexer::{Token, TokenId},
@@ -123,11 +124,13 @@ fn hex_to_dec(c: u8) -> u8 {
 
 pub struct Parser<'a> {
     scanner: TokenScanner<'a>,
+    options_stack: Vec<ContainerOptions>,
 }
 impl<'a> Parser<'a> {
     pub fn new(view: &'a SourceView, tokens: &'a [Token]) -> Self {
         Self {
             scanner: TokenScanner::new(view, tokens),
+            options_stack: Vec::<ContainerOptions>::new(),
         }
     }
     
@@ -135,13 +138,15 @@ impl<'a> Parser<'a> {
         let mut grammar = Grammar::new();
         
         // Before any containers appear a user might define some global options
-        self.parse_options_list(&mut grammar)?;
+        *grammar.options_mut() = self.parse_options_list()?;
         
         // Now only containers may follow
         while !self.scanner.done() {
             let container = self.parse_container(&mut grammar)?;
             grammar.add_container(container);
         }
+        
+        assert_eq!(self.options_stack.len(), 1);
         
         // Find the root container
         if let Some(id) = self.find_container(&grammar, keywords::ROOT_CONTAINER) {
@@ -178,10 +183,15 @@ impl<'a> Parser<'a> {
         None
     }
     
-    fn parse_options_list<T>(&mut self, dest: &mut T) -> Result<(), ParserError>
-    where
-        T: HasOptions
-    {
+    fn parse_options_list(&mut self) -> Result<ContainerOptions, ParserError> {
+        //let is_global = self.options_stack.is_empty();
+        
+        let mut ret = if let Some(elem) = self.options_stack.last() {
+            elem.clone()
+        } else {
+            ContainerOptions::default()
+        };
+        
         while let Some(token) = self.scanner.current() {
             match token {
                 Token::OptionDef(_, key, value) => {
@@ -196,7 +206,7 @@ impl<'a> Parser<'a> {
                                 }
                             };
                             
-                            dest.options_mut().set_endianness(value);
+                            ret.set_endianness(value);
                         },
                         keywords::OPTION_SCHEDULING => {
                             let value = match self.scanner.get_source(value) {
@@ -207,7 +217,7 @@ impl<'a> Parser<'a> {
                                 }
                             };
                             
-                            dest.options_mut().set_scheduling(value);
+                            ret.set_scheduling(value);
                         },
                         _ => {
                             return Err(ParserError::UnknownOptionName(key.clone()));
@@ -222,7 +232,8 @@ impl<'a> Parser<'a> {
             self.scanner.forward(1);
         }
         
-        Ok(())
+        self.options_stack.push(ret.clone());
+        Ok(ret)
     }
     
     fn parse_container(&mut self, grammar: &mut Grammar) -> Result<Container, ParserError> {
@@ -284,7 +295,7 @@ impl<'a> Parser<'a> {
         };
         
         // Options may be overwritten in a block
-        self.parse_options_list(container)?;
+        *container.options_mut() = self.parse_options_list()?;
         
         // After options variables must follow
         while let Some(token) = self.scanner.current() {
@@ -293,6 +304,8 @@ impl<'a> Parser<'a> {
                     if !had_vars {
                         return Err(ParserError::EmptyBlock(block_start));
                     }
+                    
+                    assert!(self.options_stack.pop().is_some());
                     
                     self.scanner.forward(1);
                     return Ok(());
