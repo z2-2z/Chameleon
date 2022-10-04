@@ -1,7 +1,0 @@
-container="struct"
-option="option"
-comment_open="/*"
-comment_close="*/"
-optional="optional"
-repeats="repeats"
-range=".."

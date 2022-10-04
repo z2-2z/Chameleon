@@ -1,3 +1,0 @@
-cargo afl build
-./fuzz.sh
-$NAUTILUS_PATH/target/release/fuzzer -c nautilus.ron
