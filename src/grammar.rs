@@ -13,6 +13,18 @@ pub type NumbersetId = usize;
 pub type ContainerId = usize;
 pub type StringId = usize;
 
+/// Allowed values for the depth option
+#[derive(Clone)]
+pub enum Depth {
+    Unlimited,
+    Limited(usize),
+}
+impl Default for Depth {
+    fn default() -> Self {
+        Depth::Unlimited
+    }
+}
+
 /// Allowed values for the endianness option in containers
 #[derive(Clone)]
 pub enum Endianness {
@@ -43,12 +55,14 @@ impl Default for Scheduling {
 pub struct ContainerOptions {
     endianness: Endianness,
     scheduling: Scheduling,
+    depth: Depth,
 }
 impl Default for ContainerOptions {
     fn default() -> Self {
         Self {
             endianness: Endianness::default(),
             scheduling: Scheduling::default(),
+            depth: Depth::default(),
         }
     }
 }
@@ -61,12 +75,20 @@ impl ContainerOptions {
         self.scheduling = value;
     }
     
+    pub fn set_depth(&mut self, value: Depth) {
+        self.depth = value;
+    }
+    
     pub fn scheduling(&self) -> &Scheduling {
         &self.scheduling
     }
     
     pub fn endianness(&self) -> &Endianness {
         &self.endianness
+    }
+    
+    pub fn depth(&self) -> &Depth {
+        &self.depth
     }
 }
 
@@ -600,7 +622,7 @@ impl Grammar {
         var_size
     }
     
-    fn get_numberset_bound(&self, id: NumbersetId, calc_max: bool) -> usize {
+    pub fn get_numberset_bound(&self, id: NumbersetId, calc_max: bool) -> usize {
         let mut ret: usize = if calc_max {
             0
         } else {
@@ -617,7 +639,7 @@ impl Grammar {
                     }
                 }
             },
-            _ => panic!("Tried to get maximum of non-u32 numberset"),
+            _ => panic!("Tried to get bounds of non-u32 numberset"),
         }
         
         ret

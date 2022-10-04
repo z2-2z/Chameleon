@@ -266,6 +266,16 @@ fn print_parsing_error(view: &frontend::SourceView, error: &frontend::ParserErro
             writeln!(&mut stream, "In line {} column {}: Illegal name for {}", line, col, frontend::keywords::CONTAINER)?;
             print_line_context(&mut stream, view, line, col, name.len())?;
         },
+        frontend::ParserError::NonLocalOption(name) => {
+            let (line, col) = view.lineinfo(name.start);
+            writeln!(&mut stream, "In line {} column {}: This option is only allowed on a global level", line, col)?;
+            print_line_context(&mut stream, view, line, col, name.len())?;
+        },
+        frontend::ParserError::IllegalOptionValue(value) => {
+            let (line, col) = view.lineinfo(value.start);
+            writeln!(&mut stream, "In line {} column {}: Invalid option value", line, col)?;
+            print_line_context(&mut stream, view, line, col, value.len())?;
+        },
     }
     
     writeln!(&mut stream, "")?;

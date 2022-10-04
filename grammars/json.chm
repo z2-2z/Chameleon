@@ -1,3 +1,5 @@
+option depth = 16384;
+
 struct Char {
     _: char = ' '..'!', '#'..'[', ']'..'~';
 }

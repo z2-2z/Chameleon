@@ -14,9 +14,11 @@ pub const NUMBERSET_DELIM: &str = ",";
 pub const VAR_TYPE_SEP: &str = ":";
 pub const STRING_DELIM: &str = "\"";
 pub const CHAR_DELIM: &str = "'";
+pub const DEPTH_UNLIMITED: &str = "unlimited";
 
 pub const OPTION_ENDIANNESS: &str = "endianness";
 pub const OPTION_SCHEDULING: &str = "scheduling";
+pub const OPTION_DEPTH: &str = "depth";
 
 pub const TYPE_U8: &str = "u8";
 pub const TYPE_I8: &str = "i8";

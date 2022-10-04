@@ -34,6 +34,8 @@ option endianness = big;
 option endianness = native;
 option scheduling = round-robin;
 option scheduling = random;
+option depth = unlimited;
+option depth = 1;
 
 /* Demonstrates the use of number types */
 struct NumberTypes {

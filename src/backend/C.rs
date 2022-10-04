@@ -6,6 +6,7 @@ use crate::{
         Numberset, ContainerId, Container, ContainerType,
         Variable, VariableType, IntegerValue, BytearrayValue,
         Scheduling, HasOptions, Endianness, ContainerOptions,
+        Depth,
     },
 };
 use std::io::{Write, Result, stdout};
@@ -17,7 +18,7 @@ use num_traits::{
     ops::wrapping::{WrappingAdd, WrappingSub},
 };
 
-fn emit_header<T: Write>(stream: &mut T, args: &Args) -> Result<()> {
+fn emit_header<T: Write>(stream: &mut T, args: &Args, options: &ContainerOptions) -> Result<()> {
     write!(
         stream,
 "
@@ -28,10 +29,26 @@ fn emit_header<T: Write>(stream: &mut T, args: &Args) -> Result<()> {
              ~~~~~~~~~~~~
   Grammar: {}
   Forbid cycles: {}
+  Global endianness: {}
+  Global scheduling: {}
+  Depth: {}
  ************************************/
 ",
         &args.grammar,
-        args.forbid_cycles
+        args.forbid_cycles,
+        match options.endianness() {
+            Endianness::Little => "little",
+            Endianness::Big => "big",
+            Endianness::Native => "native",
+        },
+        match options.scheduling() {
+            Scheduling::RoundRobin => "round-robin",
+            Scheduling::Random => "random",
+        },
+        match options.depth() {
+            Depth::Unlimited => "unlimited".to_string(),
+            Depth::Limited(limit) => format!("{}", limit),
+        }
     )?;
     Ok(())
 }
@@ -156,6 +173,21 @@ void random_buffer (unsigned char* buf, uint32_t len, uint64_t mask);
     Ok(())
 }
 
+fn emit_depth<T: Write>(stream: &mut T, depth: &Depth) -> Result<()> {
+    match depth {
+        Depth::Unlimited => Ok(()),
+        Depth::Limited(_) => {
+            write!(
+                stream,
+"
+// Depth counter
+static THREAD_LOCAL uint64_t depth = 0;
+"
+            )
+        },
+    }
+}
+    
 fn string_var(id: &StringId) -> String {
     format!("string_{}", id)
 }
@@ -299,23 +331,41 @@ fn emit_declarations<T: Write>(stream: &mut T, grammar: &Grammar) -> Result<()> 
     Ok(())
 }
 
-fn emit_variable<T: Write>(stream: &mut T, variable: &Variable, options: &ContainerOptions) -> Result<bool> {
+fn emit_variable<T: Write>(stream: &mut T, grammar: &Grammar, variable: &Variable, options: &ContainerOptions) -> Result<bool> {
     let mut label_ref = false;
     
     if variable.options().optional() {
+        let depth_cond = match options.depth() {
+            Depth::Unlimited => "".to_string(),
+            Depth::Limited(limit) => format!("(depth < {}ULL) && ", limit),
+        };
+        
         match options.scheduling() {
             Scheduling::RoundRobin => {
                 writeln!(stream, "        static THREAD_LOCAL uint64_t optional_counter = 0;")?;
-                writeln!(stream, "        if (optional_counter++ & 1) {{")?;
+                writeln!(stream, "        if ({}(optional_counter++ & 1)) {{", depth_cond)?;
             },
             Scheduling::Random => {
-                writeln!(stream, "        if (rand() & 1) {{")?;
+                writeln!(stream, "        if ({}(rand() & 1)) {{", depth_cond)?;
             },
         }
     }
     
     if let Some(id) = variable.options().repeats() {
-        writeln!(stream, "        uint32_t repeats_i = {}();", numberset_func(id))?;
+        match options.depth() {
+            Depth::Unlimited => {
+                writeln!(stream, "        uint32_t repeats_i = {}();", numberset_func(id))?;
+            },
+            Depth::Limited(limit) => {
+                writeln!(stream, "        uint32_t repeats_i;")?;
+                writeln!(stream, "        if (depth < {}UL) {{", limit)?;
+                writeln!(stream, "            repeats_i = {}();", numberset_func(id))?;
+                writeln!(stream, "        }} else {{")?;
+                writeln!(stream, "            repeats_i = {}U;", grammar.get_numberset_bound(*id, false))?;
+                writeln!(stream, "        }}")?;
+            },
+        }
+        
         writeln!(stream, "        while (repeats_i--) {{")?;
     }
     
@@ -439,7 +489,20 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable, options: &Contai
                     writeln!(stream, "        buf += sizeof({0}); len -= sizeof({0});", var_name)?;
                 },
                 BytearrayValue::Any(id) => {
-                    writeln!(stream, "        uint32_t string_len = {}();", numberset_func(id))?;
+                    match options.depth() {
+                        Depth::Unlimited => {
+                            writeln!(stream, "        uint32_t string_len = {}();", numberset_func(id))?;
+                        },
+                        Depth::Limited(limit) => {
+                            writeln!(stream, "        uint32_t string_len;")?;
+                            writeln!(stream, "        if (depth < {}UL) {{", limit)?;
+                            writeln!(stream, "            string_len = {}();", numberset_func(id))?;
+                            writeln!(stream, "        }} else {{")?;
+                            writeln!(stream, "            string_len = {}U;", grammar.get_numberset_bound(*id, false))?;
+                            writeln!(stream, "        }}")?;
+                        },
+                    }
+                                        
                     writeln!(stream, "        if (UNLIKELY(len < string_len)) {{")?;
                     writeln!(stream, "            goto container_end;")?;
                     writeln!(stream, "        }}")?;
@@ -460,7 +523,20 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable, options: &Contai
                     writeln!(stream, "        buf += sizeof({0}); len -= sizeof({0});", var_name)?;
                 },
                 BytearrayValue::Any(id) => {
-                    writeln!(stream, "        uint32_t bytes_len = {}();", numberset_func(id))?;
+                    match options.depth() {
+                        Depth::Unlimited => {
+                            writeln!(stream, "        uint32_t bytes_len = {}();", numberset_func(id))?;
+                        },
+                        Depth::Limited(limit) => {
+                            writeln!(stream, "        uint32_t bytes_len;")?;
+                            writeln!(stream, "        if (depth < {}UL) {{", limit)?;
+                            writeln!(stream, "            bytes_len = {}();", numberset_func(id))?;
+                            writeln!(stream, "        }} else {{")?;
+                            writeln!(stream, "            bytes_len = {}U;", grammar.get_numberset_bound(*id, false))?;
+                            writeln!(stream, "        }}")?;
+                        },
+                    }
+                    
                     writeln!(stream, "        if (UNLIKELY(len < bytes_len)) {{")?;
                     writeln!(stream, "            goto container_end;")?;
                     writeln!(stream, "        }}")?;
@@ -488,7 +564,7 @@ fn emit_variable<T: Write>(stream: &mut T, variable: &Variable, options: &Contai
     Ok(label_ref)
 }
 
-fn emit_oneof<T: Write>(stream: &mut T, container: &Container) -> Result<()> {
+fn emit_oneof<T: Write>(stream: &mut T, grammar: &Grammar, container: &Container) -> Result<()> {
     let mut label_ref = false;
     
     writeln!(stream, "static size_t {}(unsigned char* buf, size_t len) {{", container_func(&container.id()))?;
@@ -508,7 +584,7 @@ fn emit_oneof<T: Write>(stream: &mut T, container: &Container) -> Result<()> {
     
     for i in 0..container.variables().len() {
         writeln!(stream, "        case {}: {{", i)?;
-        label_ref |= emit_variable(stream, &container.variables()[i], container.options())?;
+        label_ref |= emit_variable(stream, grammar, &container.variables()[i], container.options())?;
         writeln!(stream, "        break;")?;
         writeln!(stream, "        }}")?;
     }
@@ -527,8 +603,9 @@ fn emit_oneof<T: Write>(stream: &mut T, container: &Container) -> Result<()> {
     Ok(())
 }
 
-fn emit_struct<T: Write>(stream: &mut T, container: &Container, view: &SourceView) -> Result<()> {
+fn emit_struct<T: Write>(stream: &mut T, grammar: &Grammar, container: &Container, view: &SourceView) -> Result<()> {
     let mut label_ref = false;
+    let mut named_struct = false;
     
     writeln!(stream, "static size_t {}(unsigned char* buf, size_t len) {{", container_func(&container.id()))?;
     
@@ -538,7 +615,17 @@ fn emit_struct<T: Write>(stream: &mut T, container: &Container, view: &SourceVie
             let (line, col) = view.lineinfo(name.start);
             writeln!(stream, "    // This container is the anonymous struct in line {} column {}", line, col)?;
         } else {
+            named_struct = true;
             writeln!(stream, "    // This container is struct {}", view.range(name))?;
+        }
+    }
+    
+    if named_struct {
+        match container.options().depth() {
+            Depth::Unlimited => {},
+            Depth::Limited(_) => {
+                writeln!(stream, "    depth++;")?;
+            },
         }
     }
     
@@ -546,13 +633,23 @@ fn emit_struct<T: Write>(stream: &mut T, container: &Container, view: &SourceVie
     
     for var in container.variables() {
         writeln!(stream,"    {{")?;
-        label_ref |= emit_variable(stream, var, container.options())?;
+        label_ref |= emit_variable(stream, grammar, var, container.options())?;
         writeln!(stream,"    }}")?;
     }
     
     if label_ref {
         writeln!(stream, "  container_end:")?;
     }
+    
+    if named_struct {
+        match container.options().depth() {
+            Depth::Unlimited => {},
+            Depth::Limited(_) => {
+                writeln!(stream, "    depth--;")?;
+            },
+        }
+    }
+    
     writeln!(stream, "    return original_len - len;")?;
     writeln!(stream, "}}")?;
     Ok(())
@@ -564,8 +661,8 @@ fn emit_containers<T: Write>(stream: &mut T, grammar: &Grammar, view: &SourceVie
     
     for container in grammar.containers() {
         match container.typ() {
-            ContainerType::Oneof => emit_oneof(stream, container)?,
-            ContainerType::Struct => emit_struct(stream, container, view)?,
+            ContainerType::Oneof => emit_oneof(stream, grammar, container)?,
+            ContainerType::Struct => emit_struct(stream, grammar, container, view)?,
         }
     }
     
@@ -580,12 +677,16 @@ fn emit_entrypoint<T: Write>(stream: &mut T, args: &Args, grammar: &Grammar) -> 
 size_t {}generate(unsigned char* buf, size_t len) {{
     if (UNLIKELY(!buf || !len)) {{
         return 0;
-    }}
+    }}{}
     
     return {}(buf, len);
 }}
 ",
         args.prefix,
+        match grammar.options().depth() {
+            Depth::Unlimited => "",
+            Depth::Limited(_) => "\n\n    depth = 0;",
+        },
         container_func(grammar.root().unwrap()),
     )?;
     
@@ -593,10 +694,11 @@ size_t {}generate(unsigned char* buf, size_t len) {{
 }
 
 fn write_source<T: Write>(args: &Args, grammar: &Grammar, view: &SourceView, mut stream: T) -> Result<()> {
-    emit_header(&mut stream, args)?;
+    emit_header(&mut stream, args, grammar.options())?;
     emit_includes(&mut stream)?;
     emit_macros(&mut stream)?;
     emit_rng(&mut stream, args)?;
+    emit_depth(&mut stream, grammar.options().depth())?;
     emit_helpers(&mut stream)?;
     emit_strings(&mut stream, grammar)?;
     emit_numbersets(&mut stream, grammar)?;

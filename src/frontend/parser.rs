@@ -7,7 +7,7 @@ use crate::{
         VariableOptions, NumbersetType,
         BytearrayValue, StringId,
         ContainerId, ContainerType,
-        ContainerOptions,
+        ContainerOptions, Depth,
     },
     frontend::{
         lexer::{Token, TokenId},
@@ -41,6 +41,8 @@ pub enum ParserError {
     UnresolvedRef(SourceRange),
     EmptyBlock(usize),
     IllegalContainerName(SourceRange),
+    NonLocalOption(SourceRange),
+    IllegalOptionValue(SourceRange),
 }
 
 struct TokenScanner<'a> {
@@ -184,7 +186,7 @@ impl<'a> Parser<'a> {
     }
     
     fn parse_options_list(&mut self) -> Result<ContainerOptions, ParserError> {
-        //let is_global = self.options_stack.is_empty();
+        let is_global = self.options_stack.is_empty();
         
         let mut ret = if let Some(elem) = self.options_stack.last() {
             elem.clone()
@@ -218,6 +220,28 @@ impl<'a> Parser<'a> {
                             };
                             
                             ret.set_scheduling(value);
+                        },
+                        keywords::OPTION_DEPTH => {
+                            if !is_global {
+                                return Err(ParserError::NonLocalOption(key.clone()));
+                            }
+                            
+                            let source = self.scanner.get_source(value);
+                            let value = if source == keywords::DEPTH_UNLIMITED {
+                                Depth::Unlimited
+                            } else {
+                                if let Ok(result) = source.parse::<usize>() {
+                                    if result == 0 {
+                                        return Err(ParserError::IllegalOptionValue(value.clone()));
+                                    }
+                                    
+                                    Depth::Limited(result)
+                                } else {
+                                    return Err(ParserError::IllegalOptionValue(value.clone()));
+                                }
+                            };
+                            
+                            ret.set_depth(value);
                         },
                         _ => {
                             return Err(ParserError::UnknownOptionName(key.clone()));
