@@ -1,7 +1,7 @@
 # Chameleon
 
-<span style="float: right">
-    <img src="cutie.png" width="250"/>
+<span>
+    <img align="right" src="cutie.png" width="250"/>
 </span>
 
 Chameleon is a grammar-based generator for fuzzing.
@@ -165,7 +165,7 @@ The syntax for options is:
 option <name> = <value>;
 ```
 
-Currently there are two options:
+Currently there are three options:
 - `endianness`: Sets the endianness of numericals (`native`, `little`, `big`, default: `native`)
 - `scheduling`: Determines the strategy how to select variables from a oneof (`round-robin`, `random`, default: `round-robin`)
 - `depth`: After `depth` items on the "call stack" the generator resorts to minimal expansion of all variables. Optionals are skipped,
