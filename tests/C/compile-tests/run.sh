@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e;
 
-cargo build --release;
+cargo build;
 
 for i in *.chm;
 do
     echo "Testing: $i:";
-    ../../../target/release/chameleon -o /tmp/test.c --allow-cycles "$i";
+    ../../../target/debug/chameleon -o /tmp/test.c "$i";
     clang -o /dev/null -Wall -Wextra -Wpedantic -Werror -Wno-unused-function -c /tmp/test.c;
 done
 
