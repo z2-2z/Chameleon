@@ -4,14 +4,17 @@
     <img align="right" src="cutie.png" width="250"/>
 </span>
 
-Chameleon is a grammar-based generator for fuzzing.
+Chameleon is a high-performance grammar-based generator for fuzzing.
 
-It takes a grammar as input, whose syntax resembles the
-protobuf format and outputs C code that can be called
-by other applications.
-However in contrast to protobuf the generated code does
-not parse any input into a predefined structure. It is
-for generation only.
+__Pros:__
+- Supports generating binary data in addition to text
+- More than 2x faster than other generators
+- Outputs C code instead of assembly, which means that it can utilize the
+  full power of optimizing compilers
+- Grammar syntax is a combination of protobuf and rust
+
+__Cons:__
+- Only for generation. Deserialization or grammar-based mutations are not supported
 
 ## Grammar
 Similar to protobuf where an input is a sequence of messages, in Chameleon
