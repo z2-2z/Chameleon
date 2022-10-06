@@ -9,7 +9,7 @@ use crate::{
         Depth,
     },
 };
-use std::io::{Write, stdout};
+use std::io::{Write, stdout, BufWriter};
 use std::fs::File;
 use std::fmt::{Display, Arguments};
 use std::ops::Range;
@@ -19,20 +19,20 @@ use num_traits::{
 };
 
 struct CProducer {
-    stream: Box<dyn Write>,
+    stream: BufWriter<Box<dyn Write>>,
     indentation: usize,
 }
 impl CProducer {
     fn stdout() -> Self {
         Self {
-            stream: Box::new(stdout()),
+            stream: BufWriter::new(Box::new(stdout())),
             indentation: 0,
         }
     }
     
     fn file(name: &str) -> Self {
         Self {
-            stream: Box::new(File::create(name).expect("Could not create file")),
+            stream: BufWriter::new(Box::new(File::create(name).expect("Could not create file"))),
             indentation: 0,
         }
     }
