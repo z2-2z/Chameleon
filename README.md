@@ -231,3 +231,68 @@ You can use the macros
 - `DISABLE_rand`: Don't use the internal helper method `uint64_t rand()`. Can be used to provide a custom PRNG implementation.
 - `DISABLE_random_buffer`: Don't use the internal helper method `void random_buffer (unsigned char* buf, uint32_t len, uint64_t mask)` that fills a given buffer
    with random data. Can be used to provide a custom implementation of the function.
+
+## Evaluation
+As a baseline fuzzer for comparison we chose [fzero_fuzzer](https://github.com/gamozolabs/fzero_fuzzer) since it
+seemed to be the fastest generator freely available on Github at the time of writing this.    
+We compared the JSON grammars [json.json](https://github.com/gamozolabs/fzero_fuzzer/blob/712a566d7acf7db6266417de2b2f9a06b5ca94e1/json.json) and [json.chm](grammars/json.chm) and recorded
+- the throughput in MiB/s for different depths
+- the sizes of the generated outputs for different depths
+
+The comparisons were performed on an `Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz`.   
+You can find the setups in [./evaluation/](./evaluation).
+
+### Throughput
+fzero_fuzzer:
+
+| depth | MiB/s |
+| ---   | ---   |
+| 8 | 72 |
+| 16 | 76 |
+| 32 | 77 |
+| 64 | 75 |
+| 128 | 75 |
+| 256 | 72 |
+
+Chameleon:
+
+| depth | MiB/s |
+| ---   | ---   |
+| 8 | 160 |
+| 16 | 170 |
+| 32 | 160 |
+| 64 | 170 |
+| 128 | 170 |
+| 256 | 170 |
+
+### Output
+fzero_fuzzer:    
+
+| depth | samples | min. size | median size | avg. size | max. size |
+| ---   | ---     | ---       | ---         | ---       | --- |
+|  8   |  1048577 | 1 | 5 | 5    | 12 |
+|  16  |  1048577 | 1 | 6 | 8    | 63 |
+|  32  |  1048577 | 1 | 6 | 13   | 745 |
+|  64  |  1048577 | 1 | 6 | 32   | 6820 |
+|  128 |  1048577 | 1 | 6 | 153  | 50965 |
+|  256 |  1048577 | 1 | 6 | 2915 | 1235896 |
+
+for depths >= 512 fzero_fuzzer took too long (> 10 min.) to complete
+
+Chameleon:
+
+| depth | samples | min. size | median size | avg. size | max. size |
+| ---   | ---     | ---       | ---         | ---       | --- |
+| 8 | 1048577 | 1 | 9 | 28 | 390 |
+| 16 | 1048577 | 1 | 10 | 65 | 2274 |
+| 32 | 1048577 | 1 | 10 | 148 | 10821 |
+| 64 | 1048577 | 1 | 9 | 310 | 52985 |
+| 128 | 1048577 | 1 | 10 | 648 | 179996 |
+| 256 | 1048577 | 1 | 10 | 1317 | 864252 |
+| 512 | 1048577 | 1 | 10 | 2659 | 3551445 |
+| 1024 | 1048577 | 1 | 10 | 5195 | 10560628 |
+| 2048 | 1048577 | 1 | 10 | 10720 | 40372911 |
+| 4096 | 1048577 | 1 | 10 | 21064 | 140085258 |
+| 8192 | 1048577 | 1 | 10 | 43576 | 620817946 |
+
+for depths >= 16384 Chameleon took too long (> 10 min.) to complete

@@ -11,4 +11,3 @@
         - purely generation based
         - exit as soon as crash is found
 - [ ] Additional grammar stats ?
-- [ ] Performance evaluation
