@@ -603,6 +603,8 @@ int main (int argc, char** argv) {{
         .arg("-Wextra")
         .arg("-Wpedantic")
         .arg("-Wno-unused-function")
+        .arg("-Wno-unused-parameter")
+        .arg("-Werror")
         .spawn()
         .expect("Could not launch gcc")
         .wait()

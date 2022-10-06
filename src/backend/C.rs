@@ -173,21 +173,6 @@ void random_buffer (unsigned char* buf, uint32_t len, uint64_t mask);
     Ok(())
 }
 
-fn emit_depth<T: Write>(stream: &mut T, depth: &Depth) -> Result<()> {
-    match depth {
-        Depth::Unlimited => Ok(()),
-        Depth::Limited(_) => {
-            write!(
-                stream,
-"
-// Depth counter
-static THREAD_LOCAL uint64_t depth = 0;
-"
-            )
-        },
-    }
-}
-    
 fn string_var(id: &StringId) -> String {
     format!("string_{}", id)
 }
@@ -325,7 +310,14 @@ fn emit_declarations<T: Write>(stream: &mut T, grammar: &Grammar) -> Result<()> 
     writeln!(stream, "// Forward declarations of containers")?;
     
     for container in grammar.containers() {
-        writeln!(stream, "static size_t {}(unsigned char*, size_t);", container_func(&container.id()))?;
+        match grammar.options().depth() {
+            Depth::Unlimited => {
+                writeln!(stream, "static size_t {}(unsigned char*, size_t);", container_func(&container.id()))?;
+            },
+            Depth::Limited(_) => {
+                writeln!(stream, "static size_t {}(unsigned char*, size_t, uint64_t);", container_func(&container.id()))?;
+            },
+        }
     }
     
     Ok(())
@@ -340,15 +332,7 @@ fn emit_variable<T: Write>(stream: &mut T, grammar: &Grammar, variable: &Variabl
             Depth::Limited(limit) => format!("(depth < {}ULL) && ", limit),
         };
         
-        match options.scheduling() {
-            Scheduling::RoundRobin => {
-                writeln!(stream, "        static THREAD_LOCAL uint64_t optional_counter = 0;")?;
-                writeln!(stream, "        if ({}(optional_counter++ & 1)) {{", depth_cond)?;
-            },
-            Scheduling::Random => {
-                writeln!(stream, "        if ({}(rand() & 1)) {{", depth_cond)?;
-            },
-        }
+        writeln!(stream, "        if ({}(rand() & 1)) {{", depth_cond)?;
     }
     
     if let Some(id) = variable.options().repeats() {
@@ -545,9 +529,26 @@ fn emit_variable<T: Write>(stream: &mut T, grammar: &Grammar, variable: &Variabl
                 },
             }
         },
-        VariableType::Oneof(id) |
+        VariableType::Oneof(id) => {
+            match grammar.options().depth() {
+                Depth::Unlimited => {
+                    writeln!(stream, "        size_t container_len = {}(buf, len);", container_func(id))?;
+                },
+                Depth::Limited(_) => {
+                    writeln!(stream, "        size_t container_len = {}(buf, len, depth);", container_func(id))?;
+                },
+            }
+            writeln!(stream, "        buf += container_len; len -= container_len;")?;
+        },
         VariableType::ContainerRef(id) => {
-            writeln!(stream, "        size_t container_len = {}(buf, len);", container_func(id))?;
+            match grammar.options().depth() {
+                Depth::Unlimited => {
+                    writeln!(stream, "        size_t container_len = {}(buf, len);", container_func(id))?;
+                },
+                Depth::Limited(_) => {
+                    writeln!(stream, "        size_t container_len = {}(buf, len, depth + 1);", container_func(id))?;
+                },
+            }
             writeln!(stream, "        buf += container_len; len -= container_len;")?;
         },
         VariableType::ResolveContainerRef(_) => panic!("Encountered unresolved container reference"),
@@ -567,7 +568,15 @@ fn emit_variable<T: Write>(stream: &mut T, grammar: &Grammar, variable: &Variabl
 fn emit_oneof<T: Write>(stream: &mut T, grammar: &Grammar, container: &Container) -> Result<()> {
     let mut label_ref = false;
     
-    writeln!(stream, "static size_t {}(unsigned char* buf, size_t len) {{", container_func(&container.id()))?;
+    match container.options().depth() {
+        Depth::Unlimited => {
+            writeln!(stream, "static size_t {}(unsigned char* buf, size_t len) {{", container_func(&container.id()))?;
+        },
+        Depth::Limited(_) => {
+            writeln!(stream, "static size_t {}(unsigned char* buf, size_t len, uint64_t depth) {{", container_func(&container.id()))?;
+        },
+    }
+    
     writeln!(stream, "    size_t original_len = len;")?;
     
     match container.options().scheduling() {
@@ -605,9 +614,15 @@ fn emit_oneof<T: Write>(stream: &mut T, grammar: &Grammar, container: &Container
 
 fn emit_struct<T: Write>(stream: &mut T, grammar: &Grammar, container: &Container, view: &SourceView) -> Result<()> {
     let mut label_ref = false;
-    let mut named_struct = false;
     
-    writeln!(stream, "static size_t {}(unsigned char* buf, size_t len) {{", container_func(&container.id()))?;
+    match container.options().depth() {
+        Depth::Unlimited => {
+            writeln!(stream, "static size_t {}(unsigned char* buf, size_t len) {{", container_func(&container.id()))?;
+        },
+        Depth::Limited(_) => {
+            writeln!(stream, "static size_t {}(unsigned char* buf, size_t len, uint64_t depth) {{", container_func(&container.id()))?;
+        },
+    }
     
     // Identifier comment
     if let Some(name) = &container.name() {
@@ -615,17 +630,7 @@ fn emit_struct<T: Write>(stream: &mut T, grammar: &Grammar, container: &Containe
             let (line, col) = view.lineinfo(name.start);
             writeln!(stream, "    // This container is the anonymous struct in line {} column {}", line, col)?;
         } else {
-            named_struct = true;
             writeln!(stream, "    // This container is struct {}", view.range(name))?;
-        }
-    }
-    
-    if named_struct {
-        match container.options().depth() {
-            Depth::Unlimited => {},
-            Depth::Limited(_) => {
-                writeln!(stream, "    depth++;")?;
-            },
         }
     }
     
@@ -639,15 +644,6 @@ fn emit_struct<T: Write>(stream: &mut T, grammar: &Grammar, container: &Containe
     
     if label_ref {
         writeln!(stream, "  container_end:")?;
-    }
-    
-    if named_struct {
-        match container.options().depth() {
-            Depth::Unlimited => {},
-            Depth::Limited(_) => {
-                writeln!(stream, "    depth--;")?;
-            },
-        }
     }
     
     writeln!(stream, "    return original_len - len;")?;
@@ -677,17 +673,17 @@ fn emit_entrypoint<T: Write>(stream: &mut T, args: &Args, grammar: &Grammar) -> 
 size_t {}generate(unsigned char* buf, size_t len) {{
     if (UNLIKELY(!buf || !len)) {{
         return 0;
-    }}{}
+    }}
     
-    return {}(buf, len);
+    return {}(buf, len{});
 }}
 ",
         args.prefix,
+        container_func(grammar.root().unwrap()),
         match grammar.options().depth() {
             Depth::Unlimited => "",
-            Depth::Limited(_) => "\n\n    depth = 0;",
+            Depth::Limited(_) => ", 1",
         },
-        container_func(grammar.root().unwrap()),
     )?;
     
     Ok(())
@@ -698,7 +694,6 @@ fn write_source<T: Write>(args: &Args, grammar: &Grammar, view: &SourceView, mut
     emit_includes(&mut stream)?;
     emit_macros(&mut stream)?;
     emit_rng(&mut stream, args)?;
-    emit_depth(&mut stream, grammar.options().depth())?;
     emit_helpers(&mut stream)?;
     emit_strings(&mut stream, grammar)?;
     emit_numbersets(&mut stream, grammar)?;
