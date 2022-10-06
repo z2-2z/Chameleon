@@ -1,3 +1,5 @@
+#![feature(allow_internal_unstable)]
+
 use termcolor;
 use termcolor::WriteColor;
 use std::io::Write;
