@@ -8,68 +8,17 @@ use crate::{
         Scheduling, HasOptions, Endianness, ContainerOptions,
         Depth,
     },
+    backend::formatter::CodeFormatter,
+    emit_raw, emit_line,
 };
-use std::io::{Write, stdout, BufWriter};
-use std::fs::File;
-use std::fmt::{Display, Arguments};
 use std::ops::Range;
 use num_traits::{
     Num, cast::NumCast, bounds::Bounded,
     ops::wrapping::{WrappingAdd, WrappingSub},
 };
+use std::fmt::Display;
 
-struct CProducer {
-    stream: BufWriter<Box<dyn Write>>,
-    indentation: usize,
-}
-impl CProducer {
-    fn stdout() -> Self {
-        Self {
-            stream: BufWriter::new(Box::new(stdout())),
-            indentation: 0,
-        }
-    }
-    
-    fn file(name: &str) -> Self {
-        Self {
-            stream: BufWriter::new(Box::new(File::create(name).expect("Could not create file"))),
-            indentation: 0,
-        }
-    }
-    
-    fn block_open(&mut self) {
-        self.indentation += 4;
-    }
-    
-    fn block_close(&mut self) {
-        self.indentation = self.indentation.saturating_sub(4);
-    }
-    
-    fn put_indented(&mut self, args: Arguments<'_>) {
-        write!(&mut self.stream, "{:width$}", "", width = self.indentation).expect("Could not write to outfile");
-        self.stream.write_fmt(args).expect("Could not write to outfile");
-    }
-    
-    fn put_raw(&mut self, args: Arguments<'_>) {
-        self.stream.write_fmt(args).expect("Could not write to outfile");
-    }
-    
-}
-
-macro_rules! emit_raw {
-    ($prod:expr, $($arg:tt)*) => {
-        $prod.put_raw(format_args!($($arg)*))
-    };
-}
-
-#[allow_internal_unstable(format_args_nl)]
-macro_rules! emit_line {
-    ($prod:expr, $($arg:tt)*) => {
-        $prod.put_indented(format_args_nl!($($arg)*))
-    };
-}
-
-fn emit_header(prod: &mut CProducer, args: &Args, options: &ContainerOptions) {
+fn emit_header(prod: &mut CodeFormatter, args: &Args, options: &ContainerOptions) {
     emit_raw!(
         prod,
 "
@@ -103,7 +52,7 @@ fn emit_header(prod: &mut CProducer, args: &Args, options: &ContainerOptions) {
     );
 }
 
-fn emit_includes(prod: &mut CProducer) {
+fn emit_includes(prod: &mut CodeFormatter) {
     emit_raw!(
         prod,
 "
@@ -114,7 +63,7 @@ fn emit_includes(prod: &mut CProducer) {
     )
 }
 
-fn emit_macros(prod: &mut CProducer) {
+fn emit_macros(prod: &mut CodeFormatter) {
     emit_raw!(
         prod,
 "
@@ -148,7 +97,7 @@ fn emit_macros(prod: &mut CProducer) {
     );
 }
 
-fn emit_rng(prod: &mut CProducer, args: &Args) {
+fn emit_rng(prod: &mut CodeFormatter, args: &Args) {
     emit_raw!(
         prod,
 "
@@ -183,7 +132,7 @@ void {0}seed(size_t);
     );
 }
 
-fn emit_helpers(prod: &mut CProducer) {
+fn emit_helpers(prod: &mut CodeFormatter) {
     emit_raw!(
         prod,
 "
@@ -223,7 +172,7 @@ fn string_var(id: &StringId) -> String {
     format!("string_{}", id)
 }
 
-fn emit_strings(prod: &mut CProducer, grammar: &Grammar) {
+fn emit_strings(prod: &mut CodeFormatter, grammar: &Grammar) {
     if grammar.strings().len() > 0 {
         emit_raw!(prod, "\n// Strings from grammar\n");
         
@@ -257,7 +206,7 @@ fn numberset_c_type(typ: &NumbersetType) -> &str {
     }
 }
 
-fn emit_range_selection<R>(prod: &mut CProducer, range: &Range<R>, c_type: &str, suffix: &str) 
+fn emit_range_selection<R>(prod: &mut CodeFormatter, range: &Range<R>, c_type: &str, suffix: &str) 
 where
     R: Display + Ord + Num + NumCast + Copy + Bounded + WrappingAdd + WrappingSub,
 {
@@ -286,7 +235,7 @@ where
     }
 }
 
-fn emit_single_numberset<R>(prod: &mut CProducer, numberset: &Numberset<R>, c_type: &str, suffix: &str)
+fn emit_single_numberset<R>(prod: &mut CodeFormatter, numberset: &Numberset<R>, c_type: &str, suffix: &str)
 where
     R: Display + Ord + Num + NumCast + Copy + Bounded + WrappingAdd + WrappingSub,
 {
@@ -317,7 +266,7 @@ where
     }
 }
 
-fn emit_numbersets(prod: &mut CProducer, grammar: &Grammar) {
+fn emit_numbersets(prod: &mut CodeFormatter, grammar: &Grammar) {
     if grammar.numbersets().len() > 0 {
         emit_raw!(prod, "\n// Numbersets from grammar\n");
         
@@ -347,7 +296,7 @@ fn container_func(id: &ContainerId) -> String {
     format!("container_{}", id)
 }
 
-fn emit_declarations(prod: &mut CProducer, grammar: &Grammar) {
+fn emit_declarations(prod: &mut CodeFormatter, grammar: &Grammar) {
     emit_raw!(prod, "\n// Forward declarations of containers\n");
     
     for container in grammar.containers() {
@@ -362,7 +311,7 @@ fn emit_declarations(prod: &mut CProducer, grammar: &Grammar) {
     }
 }
 
-fn emit_variable(prod: &mut CProducer, grammar: &Grammar, variable: &Variable, options: &ContainerOptions) -> bool {
+fn emit_variable(prod: &mut CodeFormatter, grammar: &Grammar, variable: &Variable, options: &ContainerOptions) -> bool {
     let mut label_ref = false;
     
     if variable.options().optional() {
@@ -636,7 +585,7 @@ fn emit_variable(prod: &mut CProducer, grammar: &Grammar, variable: &Variable, o
     label_ref
 }
 
-fn emit_oneof(prod: &mut CProducer, grammar: &Grammar, container: &Container) {
+fn emit_oneof(prod: &mut CodeFormatter, grammar: &Grammar, container: &Container) {
     let mut label_ref = false;
     
     match container.options().depth() {
@@ -691,7 +640,7 @@ fn emit_oneof(prod: &mut CProducer, grammar: &Grammar, container: &Container) {
     emit_line!(prod, "}}");
 }
 
-fn emit_struct(prod: &mut CProducer, grammar: &Grammar, container: &Container, view: &SourceView) {
+fn emit_struct(prod: &mut CodeFormatter, grammar: &Grammar, container: &Container, view: &SourceView) {
     let mut label_ref = false;
     
     match container.options().depth() {
@@ -735,7 +684,7 @@ fn emit_struct(prod: &mut CProducer, grammar: &Grammar, container: &Container, v
     emit_line!(prod, "}}");
 }
 
-fn emit_containers(prod: &mut CProducer, grammar: &Grammar, view: &SourceView) {
+fn emit_containers(prod: &mut CodeFormatter, grammar: &Grammar, view: &SourceView) {
     emit_raw!(prod, "\n// Definition of containers\n");
     
     for container in grammar.containers() {
@@ -746,7 +695,7 @@ fn emit_containers(prod: &mut CProducer, grammar: &Grammar, view: &SourceView) {
     }
 }
 
-fn emit_entrypoint(prod: &mut CProducer, args: &Args, grammar: &Grammar) {
+fn emit_entrypoint(prod: &mut CodeFormatter, args: &Args, grammar: &Grammar) {
     emit_raw!(
         prod,
 "
@@ -768,7 +717,7 @@ size_t {}generate(unsigned char* buf, size_t len) {{
     );
 }
 
-fn write_source(prod: &mut CProducer, args: &Args, grammar: &Grammar, view: &SourceView) {
+fn write_source(prod: &mut CodeFormatter, args: &Args, grammar: &Grammar, view: &SourceView) {
     emit_header(prod, args, grammar.options());
     emit_includes(prod);
     emit_macros(prod);
@@ -781,7 +730,7 @@ fn write_source(prod: &mut CProducer, args: &Args, grammar: &Grammar, view: &Sou
     emit_entrypoint(prod, args, grammar);
 }
 
-fn write_header(prod: &mut CProducer, args: &Args) {
+fn write_header(prod: &mut CodeFormatter, args: &Args) {
     emit_raw!(
         prod,
 "
@@ -799,19 +748,19 @@ void {0}seed(size_t initial_seed);
     )
 }
 
-fn c_stream(args: &Args) -> CProducer {
+fn c_stream(args: &Args) -> CodeFormatter {
     if args.outfile.as_ref().unwrap().as_str() == "-" {
-        CProducer::stdout()
+        CodeFormatter::stdout()
     } else {
-        CProducer::file(&args.outfile.as_ref().unwrap())
+        CodeFormatter::file(&args.outfile.as_ref().unwrap())
     }
 }
 
-fn h_stream(args: &Args) -> CProducer {
+fn h_stream(args: &Args) -> CodeFormatter {
     if args.outfile.as_ref().unwrap().as_str() == "-" {
-        CProducer::stdout()
+        CodeFormatter::stdout()
     } else {
-        CProducer::file(&format!("{}.h", args.outfile.as_ref().unwrap()))
+        CodeFormatter::file(&format!("{}.h", args.outfile.as_ref().unwrap()))
     }
 }
 

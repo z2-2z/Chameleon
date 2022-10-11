@@ -11,3 +11,4 @@
         - purely generation based
         - exit as soon as crash is found
 - [ ] Additional grammar stats ?
+- [ ] logger with error printing / warning printing etc.

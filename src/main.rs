@@ -3,6 +3,7 @@
 use termcolor;
 use termcolor::WriteColor;
 use std::io::Write;
+use std::path::Path;
 use clap::Parser;
 
 mod grammar;
@@ -438,7 +439,8 @@ fn print_stats(grammar: &grammar::Grammar) {
     }
 }
 
-fn run_benchmark() {
+fn run_benchmark(outfile: &str) {
+    let path = Path::new(outfile);
     let mut file = std::fs::File::create("/tmp/chm-bench.c").expect("Could not create benchmark file");
     
     write!(
@@ -451,7 +453,7 @@ fn run_benchmark() {
 #include <pthread.h>
 #include <time.h>
 
-#include \"chm-generator.c.h\"
+#include \"{}.h\"
 
 typedef struct thread_data {{
     // Input for thread
@@ -589,8 +591,20 @@ int main (int argc, char** argv) {{
         }}
     }}
 }}
-"
+",
+        path.file_name().unwrap().to_str().unwrap(),
     ).expect("Could not write to benchmark file");
+    
+    let include_dir = if let Some(parent) = path.parent() {
+        let parent = parent.to_str().unwrap();
+        if parent.len() == 0 {
+            format!("-I.")
+        } else {
+            format!("-I{}", parent)
+        }
+    } else {
+        format!("-I.")
+    };
     
     let status = std::process::Command::new("gcc")
         .arg("-o")
@@ -599,7 +613,8 @@ int main (int argc, char** argv) {{
         .arg("-flto")
         .arg("-lpthread")
         .arg("/tmp/chm-bench.c")
-        .arg("/tmp/chm-generator.c")
+        .arg(outfile)
+        .arg(&include_dir)
         .arg("-DMULTITHREADING")
         .arg("-Wall")
         .arg("-Wextra")
@@ -652,13 +667,23 @@ fn main() {
     
     verify_grammar(&view, &grammar, &args);
     
+    let mut did_action = false;
+    
     if args.outfile.is_some() {
-        backend::default::compile_grammar(&args, &grammar, &view);
-    } else if args.bench {
-        args.outfile = Some("/tmp/chm-generator.c".to_string());
-        backend::default::compile_grammar(&args, &grammar, &view);
-        run_benchmark();
-    } else {
+        backend::C::compile_grammar(&args, &grammar, &view);
+        did_action = true;
+    }
+    
+    if args.bench {
+        if args.outfile.is_none() {
+            args.outfile = Some("/tmp/chm-generator.c".to_string());
+            backend::C::compile_grammar(&args, &grammar, &view);
+        }
+        run_benchmark(&args.outfile.unwrap());
+        did_action = true;
+    }
+    
+    if !did_action {
         let _ = warning("No action specified. Doing nothing.");
     }
 }
